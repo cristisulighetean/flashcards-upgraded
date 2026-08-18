@@ -18,9 +18,13 @@ from app.models.vocab_entry import VocabEntry
 from app.schemas.vocab import (
     AddWordsRequest,
     AddWordsResponse,
+    DeckStats,
+    ImportRequest,
+    ImportResponse,
     VocabEntryResponse,
     VocabEntryUpdate,
     VocabListResponse,
+    VocabStatsResponse,
 )
 from app.services.openai_service import LLMRateLimitError
 from app.services.vocab_cards import build_flashcards, sync_flashcards
@@ -151,6 +155,7 @@ async def add_words(
 
 @router.get("/", response_model=VocabListResponse, summary="List vocabulary entries")
 async def list_entries(
+    lang: str | None = Query(default=None, description="Deck: the language being learned"),
     search: str | None = Query(default=None, description="Filter by term or translation"),
     limit: int = Query(default=100, ge=1, le=1000),
     db: AsyncSession = Depends(get_db),
@@ -168,6 +173,9 @@ async def list_entries(
         .order_by(VocabEntry.created_at.desc())
         .limit(limit)
     )
+    if lang:
+        query = query.where(VocabEntry.source_lang == lang)
+
     if search:
         pattern = f"%{search.lower()}%"
         query = query.where(
@@ -233,3 +241,119 @@ async def delete_entry(entry_id: str, db: AsyncSession = Depends(get_db)) -> Non
     await db.execute(delete(Flashcard).where(Flashcard.vocab_entry_id == entry_id))
     await db.delete(entry)
     logger.info("Deleted vocabulary entry %s and its cards", entry_id)
+
+
+@router.get(
+    "/stats",
+    response_model=VocabStatsResponse,
+    summary="Entry and card counts per language deck",
+)
+async def deck_stats(db: AsyncSession = Depends(get_db)) -> VocabStatsResponse:
+    entry_rows = await db.execute(
+        select(VocabEntry.source_lang, func.count(VocabEntry.id)).group_by(
+            VocabEntry.source_lang
+        )
+    )
+    entry_counts = dict(entry_rows.all())
+
+    card_rows = await db.execute(
+        select(
+            VocabEntry.source_lang,
+            Flashcard.status,
+            func.count(Flashcard.id),
+        )
+        .join(VocabEntry, Flashcard.vocab_entry_id == VocabEntry.id)
+        .group_by(VocabEntry.source_lang, Flashcard.status)
+    )
+    card_counts: dict[tuple[str, str], int] = {
+        (lang, status_): n for lang, status_, n in card_rows.all()
+    }
+
+    langs = sorted(set(entry_counts) | {lang for lang, _ in card_counts})
+    return VocabStatsResponse(
+        decks=[
+            DeckStats(
+                lang=lang,
+                entries=entry_counts.get(lang, 0),
+                cards_pending=card_counts.get((lang, "pending"), 0),
+                cards_accepted=card_counts.get((lang, "accepted"), 0),
+            )
+            for lang in langs
+        ]
+    )
+
+
+@router.post(
+    "/import",
+    response_model=ImportResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Bulk-import a prepared word list (no AI call)",
+)
+async def import_words(
+    request: ImportRequest,
+    db: AsyncSession = Depends(get_db),
+) -> ImportResponse:
+    """
+    Load a ready-made list into one deck.  Translations are taken as given, so
+    this is instant and deterministic — the intended way to seed a deck.
+    """
+    if request.lang == request.gloss_lang:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="The deck language and the gloss language must differ.",
+        )
+
+    existing_rows = await db.execute(
+        select(func.lower(VocabEntry.term)).where(
+            VocabEntry.source_lang == request.lang
+        )
+    )
+    existing = set(existing_rows.scalars().all())
+
+    card_status = "accepted" if request.accepted else "pending"
+    imported = 0
+    cards_created = 0
+    skipped: list[str] = []
+
+    for item in request.entries:
+        term = item.term.strip()
+        key = term.lower()
+        if key in existing:
+            skipped.append(term)
+            continue
+        existing.add(key)
+
+        entry = VocabEntry(
+            term=term,
+            translation=item.translation.strip(),
+            source_lang=request.lang,
+            target_lang=request.gloss_lang,
+            part_of_speech=item.part_of_speech,
+            example=item.example,
+            example_translation=item.example_translation,
+            notes=item.notes,
+        )
+        db.add(entry)
+        await db.flush()
+
+        for card in build_flashcards(entry, status=card_status):
+            db.add(card)
+        cards_created += 2
+        imported += 1
+
+    await db.flush()
+    logger.info(
+        "Imported %d %s entries (%d cards, status=%s), skipped %d duplicates",
+        imported,
+        request.lang,
+        cards_created,
+        card_status,
+        len(skipped),
+    )
+
+    return ImportResponse(
+        lang=request.lang,
+        imported=imported,
+        skipped_duplicates=skipped,
+        cards_created=cards_created,
+    )

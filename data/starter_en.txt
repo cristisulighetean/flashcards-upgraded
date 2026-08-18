@@ -1,0 +1,7 @@
+# English words, glossed in Romanian — "term = translation"
+ubiquitous = omniprezent
+resilient = rezistent, rezilient
+to thrive = a prospera, a înflori
+candour = sinceritate, franchețe
+elusive = evaziv, greu de prins
+steadfast = statornic, neclintit

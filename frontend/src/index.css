@@ -945,6 +945,76 @@ h1, h2, h3, h4, h5, h6 {
   padding: 3rem 1rem;
 }
 
+
+/* --- Vocabulary decks (one per language being learned) --- */
+.deck-tabs {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.deck-tab {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.75rem 1.25rem;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--text-secondary);
+  font-family: 'Inter', sans-serif;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: color 0.2s ease, border-color 0.2s ease;
+  margin-bottom: -1px;
+}
+
+.deck-tab:hover {
+  color: var(--text-primary);
+}
+
+.deck-tab.active {
+  color: var(--text-primary);
+  border-bottom-color: var(--accent-cyan);
+}
+
+.deck-flag {
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+.deck-count {
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--text-secondary);
+}
+
+.deck-tab.active .deck-count {
+  background: rgba(0, 240, 255, 0.15);
+  color: var(--accent-cyan);
+}
+
+.deck-badge {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--accent-cyan);
+  background: rgba(0, 240, 255, 0.08);
+  border: 1px solid rgba(0, 240, 255, 0.2);
+  border-radius: var(--radius-sm);
+  padding: 0.35rem 0.7rem;
+  white-space: nowrap;
+}
+
+.deck-pending-hint {
+  font-size: 0.85rem;
+  margin-bottom: 1rem;
+}
+
 /* --- Responsive Design (Mobile/iPhone) --- */
 @media (max-width: 768px) {
   .file-info {
@@ -1071,6 +1141,18 @@ h1, h2, h3, h4, h5, h6 {
 
   .vocab-add {
     padding: 1rem;
+  }
+
+  .deck-tabs {
+    gap: 0.25rem;
+  }
+
+  .deck-tab {
+    flex: 1;
+    justify-content: center;
+    gap: 0.4rem;
+    padding: 0.7rem 0.5rem;
+    font-size: 0.85rem;
   }
 
   .vocab-add-actions {

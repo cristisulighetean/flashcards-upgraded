@@ -227,3 +227,93 @@ class TestVocabAPI:
         await client.post("/api/v1/vocab/", json={"terms": ["pisica - cat"], "enrich": False})
         r = await client.get("/api/v1/vocab/?search=cat")
         assert any("cat" in e["translation"] for e in r.json()["entries"])
+
+
+class TestLanguageDecks:
+    """Two decks: the 'lang' is the language being learned, not a direction."""
+
+    async def _import(self, client: AsyncClient, lang: str, entries: list[dict], **kw):
+        payload = {"lang": lang, "gloss_lang": "ro" if lang == "en" else "en",
+                   "entries": entries}
+        payload.update(kw)
+        return await client.post("/api/v1/vocab/import", json=payload)
+
+    async def test_import_seeds_a_deck_without_ai(self, client: AsyncClient):
+        r = await self._import(client, "en", [
+            {"term": "ubiquitous", "translation": "omniprezent", "part_of_speech": "adjective"},
+            {"term": "resilient", "translation": "rezilient"},
+        ])
+        assert r.status_code == 201
+        body = r.json()
+        assert body["imported"] == 2
+        assert body["cards_created"] == 4
+        assert body["lang"] == "en"
+
+    async def test_imported_words_are_accepted_by_default(self, client: AsyncClient):
+        await self._import(client, "en", [{"term": "thrive", "translation": "a prospera"}])
+        r = await client.get("/api/v1/flashcards/?card_type=vocab&lang=en")
+        assert any(c["question"] == "thrive" for c in r.json()["flashcards"])
+
+    async def test_import_can_route_to_quality_control(self, client: AsyncClient):
+        await self._import(client, "en", [{"term": "prudent", "translation": "prudent"}],
+                           accepted=False)
+        r = await client.get("/api/v1/flashcards/?card_status=pending&card_type=vocab&lang=en")
+        assert any(c["question"] == "prudent" for c in r.json()["flashcards"])
+
+    async def test_same_word_allowed_in_both_decks(self, client: AsyncClient):
+        # 'a' words that legitimately exist in each language must not collide.
+        en = await self._import(client, "en", [{"term": "actual", "translation": "real"}])
+        ro = await self._import(client, "ro", [{"term": "actual", "translation": "current"}])
+        assert en.json()["imported"] == 1
+        assert ro.json()["imported"] == 1
+
+    async def test_duplicates_skipped_within_a_deck(self, client: AsyncClient):
+        await self._import(client, "en", [{"term": "diligent", "translation": "harnic"}])
+        again = await self._import(client, "en", [{"term": "Diligent", "translation": "harnic"}])
+        assert again.json()["imported"] == 0
+        assert again.json()["skipped_duplicates"] == ["Diligent"]
+
+    async def test_import_rejects_identical_languages(self, client: AsyncClient):
+        r = await client.post("/api/v1/vocab/import", json={
+            "lang": "en", "gloss_lang": "en",
+            "entries": [{"term": "x", "translation": "y"}]})
+        assert r.status_code == 422
+
+    async def test_lang_filter_separates_the_decks(self, client: AsyncClient):
+        await self._import(client, "en", [{"term": "meadow", "translation": "pajiște"}])
+        await self._import(client, "ro", [{"term": "pajiște", "translation": "meadow"}])
+
+        en_cards = (await client.get("/api/v1/flashcards/?card_type=vocab&lang=en")).json()
+        ro_cards = (await client.get("/api/v1/flashcards/?card_type=vocab&lang=ro")).json()
+
+        assert any(c["question"] == "meadow" for c in en_cards["flashcards"])
+        assert all(c["question"] != "pajiște" or c["direction"] == "production"
+                   for c in en_cards["flashcards"])
+        assert any(c["question"] == "pajiște" for c in ro_cards["flashcards"])
+
+    async def test_listing_entries_filters_by_deck(self, client: AsyncClient):
+        await self._import(client, "en", [{"term": "steadfast", "translation": "statornic"}])
+        en = (await client.get("/api/v1/vocab/?lang=en")).json()
+        ro = (await client.get("/api/v1/vocab/?lang=ro")).json()
+        assert any(e["term"] == "steadfast" for e in en["entries"])
+        assert all(e["term"] != "steadfast" for e in ro["entries"])
+
+    async def test_stats_report_each_deck(self, client: AsyncClient):
+        await self._import(client, "en", [{"term": "candour", "translation": "sinceritate"}])
+        await self._import(client, "ro", [{"term": "sinceritate", "translation": "candour"}])
+
+        stats = (await client.get("/api/v1/vocab/stats")).json()
+        by_lang = {d["lang"]: d for d in stats["decks"]}
+        assert by_lang["en"]["entries"] >= 1
+        assert by_lang["ro"]["entries"] >= 1
+        assert by_lang["en"]["cards_accepted"] >= 2
+
+    async def test_directions_are_skill_named_not_language_named(self, client: AsyncClient):
+        await self._import(client, "en", [{"term": "elusive", "translation": "evaziv"}])
+        cards = (await client.get("/api/v1/flashcards/?card_type=vocab&lang=en")).json()
+        dirs = {c["direction"] for c in cards["flashcards"]}
+        assert dirs <= {"recognition", "production"}
+        # The English deck asks the English word on its recognition card.
+        recog = [c for c in cards["flashcards"]
+                 if c["direction"] == "recognition" and c["question"] == "elusive"]
+        assert recog, "recognition card should show the learned term"

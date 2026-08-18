@@ -6,6 +6,10 @@ direction becomes its own card so SM-2 can track recognition and production
 separately — knowing a word when you read it is a different skill from
 recalling it when you need to write it.
 
+Directions are named by *skill*, not by language pair: an entry in the English
+deck and one in the Romanian deck both have a "recognition" and a "production"
+card, each pointing whichever way that deck requires.
+
 The question/answer text is written onto the flashcard at build time, which is
 what lets every existing screen (study, quality control, browser) render a
 vocabulary card without knowing anything about vocabulary.
@@ -13,10 +17,15 @@ vocabulary card without knowing anything about vocabulary.
 from app.models.flashcard import Flashcard
 from app.models.vocab_entry import VocabEntry
 
-DIRECTION_RECOGNITION = "ro_en"  # show the source word, recall the translation
-DIRECTION_PRODUCTION = "en_ro"   # show the translation, produce the source word
+DIRECTION_RECOGNITION = "recognition"  # show the term, recall its meaning
+DIRECTION_PRODUCTION = "production"    # show the meaning, produce the term
 
 BOTH_DIRECTIONS = (DIRECTION_RECOGNITION, DIRECTION_PRODUCTION)
+
+DIRECTION_LABELS = {
+    DIRECTION_RECOGNITION: "Recognition",
+    DIRECTION_PRODUCTION: "Production",
+}
 
 
 def _answer_markdown(headline: str, entry: VocabEntry, show_example: bool = True) -> str:

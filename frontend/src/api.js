@@ -44,10 +44,11 @@ export const generateFlashcards = async (documentId, numCards = null) => {
 };
 
 // 3. List Flashcards (Adaptive Priority Sorted)
-export const listFlashcards = async (limit = 100, cardType = null) => {
+export const listFlashcards = async (limit = 100, cardType = null, lang = null) => {
   const url = new URL(`${API_BASE}/flashcards/`, window.location.origin);
   url.searchParams.append('limit', limit);
   if (cardType) url.searchParams.append('card_type', cardType);
+  if (lang) url.searchParams.append('lang', lang);
   
   const res = await fetch(url);
   if (!res.ok) throw new Error('Failed to fetch flashcards');
@@ -126,9 +127,10 @@ export const addWords = async (terms, { sourceLang = 'ro', targetLang = 'en', en
 };
 
 // 9. List vocabulary entries
-export const listVocab = async (search = '') => {
+export const listVocab = async (search = '', lang = null) => {
   const url = new URL(`${API_BASE}/vocab/`, window.location.origin);
   if (search) url.searchParams.append('search', search);
+  if (lang) url.searchParams.append('lang', lang);
 
   const res = await fetch(url);
   if (!res.ok) throw new Error('Failed to fetch vocabulary');
@@ -152,4 +154,31 @@ export const deleteVocabEntry = async (entryId) => {
   const res = await fetch(`${API_BASE}/vocab/${entryId}`, { method: 'DELETE' });
   if (!res.ok) throw new Error('Failed to delete entry');
   return true;
+};
+
+// 12. Per-deck counts, used by the language tabs
+export const getVocabStats = async () => {
+  const res = await fetch(`${API_BASE}/vocab/stats`);
+  if (!res.ok) throw new Error('Failed to fetch vocabulary stats');
+  return res.json();
+};
+
+// 13. Bulk-import a prepared word list (no AI call)
+export const importWords = async (lang, entries, { glossLang = null, accepted = true } = {}) => {
+  const res = await fetch(`${API_BASE}/vocab/import`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      lang,
+      gloss_lang: glossLang || (lang === 'ro' ? 'en' : 'ro'),
+      entries,
+      accepted,
+    }),
+  });
+
+  if (!res.ok) {
+    const error = await res.json().catch(() => ({}));
+    throw new Error(error.detail || 'Failed to import words');
+  }
+  return res.json();
 };

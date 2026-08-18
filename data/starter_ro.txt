@@ -1,0 +1,6 @@
+# Romanian words, glossed in English — "term = translation"
+dor = longing, yearning
+a tăgădui = to deny, to disavow
+sprinten = nimble, agile
+zăduf = sweltering heat
+a desluși = to make out, to discern

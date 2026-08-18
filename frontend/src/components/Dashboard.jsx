@@ -1,12 +1,14 @@
 import React, { useEffect, useState } from 'react';
-import { listFlashcards, listPendingFlashcards } from '../api';
+import { listFlashcards, listPendingFlashcards, getVocabStats } from '../api';
 import { BookOpen, Layers, Zap, ShieldCheck, ChevronDown, ChevronRight, FileText, Languages } from 'lucide-react';
+
+const DECK_NAMES = { en: 'English', ro: 'Romanian' };
 
 const Dashboard = ({ onStartReview, onReviewNew, onBrowseCard, onStudyVocab, onAddWords }) => {
   const [cards, setCards] = useState([]);
   const [stats, setStats] = useState({ inventory: 0, mastery: 0, focus: 0 });
   const [pendingCount, setPendingCount] = useState(0);
-  const [vocabCount, setVocabCount] = useState(0);
+  const [vocabDecks, setVocabDecks] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [expandedGroups, setExpandedGroups] = useState(new Set());
 
@@ -18,11 +20,10 @@ const Dashboard = ({ onStartReview, onReviewNew, onBrowseCard, onStudyVocab, onA
         const all = await listFlashcards(100);
         // Get pending count for quality control
         const pending = await listPendingFlashcards();
-        // Only the count matters here, so ask for a single row.
-        const vocab = await listFlashcards(1, 'vocab');
+        const vocab = await getVocabStats();
 
         setCards(all.flashcards || []);
-        setVocabCount(vocab.total_inventory || 0);
+        setVocabDecks(vocab.decks || []);
         
         // Use global stats from API metadata
         setStats({
@@ -83,13 +84,30 @@ const Dashboard = ({ onStartReview, onReviewNew, onBrowseCard, onStudyVocab, onA
             </button>
           )}
           
-          <button
-            className="btn btn-secondary"
-            onClick={vocabCount > 0 ? onStudyVocab : onAddWords}
-          >
-            <Languages size={18} />
-            {vocabCount > 0 ? `Study Vocabulary (${vocabCount})` : 'Add Vocabulary'}
-          </button>
+          {vocabDecks.length === 0 ? (
+            <button className="btn btn-secondary" onClick={() => onAddWords('en')}>
+              <Languages size={18} /> Add Vocabulary
+            </button>
+          ) : (
+            vocabDecks.map((deck) => {
+              const name = DECK_NAMES[deck.lang] || deck.lang.toUpperCase();
+              return (
+                <button
+                  key={deck.lang}
+                  className="btn btn-secondary"
+                  onClick={() =>
+                    deck.cards_accepted > 0 ? onStudyVocab(deck.lang) : onAddWords(deck.lang)
+                  }
+                  title={`${deck.entries} words in the ${name} deck`}
+                >
+                  <Languages size={18} />
+                  {deck.cards_accepted > 0
+                    ? `Study ${name} (${deck.cards_accepted})`
+                    : `${name} Words (${deck.entries})`}
+                </button>
+              );
+            })
+          )}
 
           <button 
             className="btn btn-primary"

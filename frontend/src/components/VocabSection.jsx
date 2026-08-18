@@ -1,23 +1,43 @@
 import React, { useEffect, useState } from 'react';
-import { Sparkles, Trash2, ArrowLeftRight, Search, BookOpen } from 'lucide-react';
-import { addWords, listVocab, deleteVocabEntry } from '../api';
+import { Sparkles, Trash2, Search, BookOpen } from 'lucide-react';
+import { addWords, listVocab, deleteVocabEntry, getVocabStats } from '../api';
 
-const VocabSection = ({ onStudyVocab }) => {
+// A deck is the language you are learning; the other language supplies the gloss.
+const DECKS = [
+  { lang: 'en', label: 'English', gloss: 'ro', flag: '🇬🇧', placeholder: 'ubiquitous\nresilient\nto thrive' },
+  { lang: 'ro', label: 'Romanian', gloss: 'en', flag: '🇷🇴', placeholder: 'cumpătat\nzăpadă\na cumpăra' },
+];
+
+const VocabSection = ({ onStudyVocab, initialLang = 'en' }) => {
+  const [lang, setLang] = useState(initialLang);
   const [input, setInput] = useState('');
-  const [sourceLang, setSourceLang] = useState('ro');
   const [entries, setEntries] = useState([]);
+  const [stats, setStats] = useState({});
   const [search, setSearch] = useState('');
   const [isAdding, setIsAdding] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
 
-  const targetLang = sourceLang === 'ro' ? 'en' : 'ro';
+  const deck = DECKS.find((d) => d.lang === lang) || DECKS[0];
 
-  const refresh = async (term = '') => {
+  const refreshStats = async () => {
     try {
-      const res = await listVocab(term);
+      const res = await getVocabStats();
+      const byLang = {};
+      (res.decks || []).forEach((d) => { byLang[d.lang] = d; });
+      setStats(byLang);
+    } catch {
+      // Counts are decorative; a failure here shouldn't blank the page.
+    }
+  };
+
+  const refresh = async (term, deckLang) => {
+    setIsLoading(true);
+    try {
+      const res = await listVocab(term, deckLang);
       setEntries(res.entries || []);
+      setError('');
     } catch (err) {
       setError(err.message);
     } finally {
@@ -25,16 +45,15 @@ const VocabSection = ({ onStudyVocab }) => {
     }
   };
 
-  // Debounced: also covers the initial load, since search starts empty.
+  useEffect(() => { refreshStats(); }, []);
+
+  // Debounced on search; immediate when switching decks.
   useEffect(() => {
-    const t = setTimeout(() => refresh(search), search ? 300 : 0);
+    const t = setTimeout(() => refresh(search, lang), search ? 300 : 0);
     return () => clearTimeout(t);
-  }, [search]);
+  }, [search, lang]);
 
-  // One word per line, or several separated by commas.
-  const parseTerms = (raw) =>
-    raw.split(/[\n,]/).map((t) => t.trim()).filter(Boolean);
-
+  const parseTerms = (raw) => raw.split(/[\n,]/).map((t) => t.trim()).filter(Boolean);
   const terms = parseTerms(input);
 
   const handleAdd = async () => {
@@ -43,7 +62,11 @@ const VocabSection = ({ onStudyVocab }) => {
     setNotice('');
     setIsAdding(true);
     try {
-      const res = await addWords(terms, { sourceLang, targetLang, enrich: true });
+      const res = await addWords(terms, {
+        sourceLang: deck.lang,
+        targetLang: deck.gloss,
+        enrich: true,
+      });
       const bits = [];
       if (res.added) {
         bits.push(`${res.added} word${res.added !== 1 ? 's' : ''} added · ${res.cards_created} cards awaiting review`);
@@ -53,7 +76,7 @@ const VocabSection = ({ onStudyVocab }) => {
       }
       setNotice(bits.join(' · ') || 'Nothing added.');
       setInput('');
-      await refresh(search);
+      await Promise.all([refresh(search, lang), refreshStats()]);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -65,15 +88,25 @@ const VocabSection = ({ onStudyVocab }) => {
     try {
       await deleteVocabEntry(id);
       setEntries((prev) => prev.filter((e) => e.id !== id));
+      refreshStats();
     } catch (err) {
       setError(err.message);
     }
   };
 
   const handleKeyDown = (e) => {
-    // Cmd/Ctrl+Enter submits without leaving the keyboard.
     if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') handleAdd();
   };
+
+  const switchDeck = (nextLang) => {
+    if (nextLang === lang) return;
+    setLang(nextLang);
+    setNotice('');
+    setError('');
+    setInput('');
+  };
+
+  const deckStats = stats[lang] || { entries: 0, cards_accepted: 0, cards_pending: 0 };
 
   return (
     <div>
@@ -81,26 +114,54 @@ const VocabSection = ({ onStudyVocab }) => {
         <div>
           <h1 className="text-gradient">Vocabulary</h1>
           <p className="text-secondary">
-            Type a word — the AI fills in the translation, part of speech and an example.
+            Learning <strong>{deck.label}</strong> words, explained in{' '}
+            {DECKS.find((d) => d.lang === deck.gloss)?.label}.
           </p>
         </div>
         <div className="dashboard-actions">
-          <button className="btn btn-primary" onClick={onStudyVocab}>
-            <BookOpen size={18} /> Study Vocabulary
+          <button
+            className="btn btn-primary"
+            onClick={() => onStudyVocab(lang)}
+            disabled={deckStats.cards_accepted === 0}
+            title={deckStats.cards_accepted === 0 ? 'Approve some cards in Quality Control first' : undefined}
+          >
+            <BookOpen size={18} /> Study {deck.label}
           </button>
         </div>
       </div>
 
+      {/* Deck tabs */}
+      <div className="deck-tabs" role="tablist">
+        {DECKS.map((d) => {
+          const s = stats[d.lang] || { entries: 0 };
+          return (
+            <button
+              key={d.lang}
+              role="tab"
+              aria-selected={d.lang === lang}
+              className={`deck-tab ${d.lang === lang ? 'active' : ''}`}
+              onClick={() => switchDeck(d.lang)}
+            >
+              <span className="deck-flag">{d.flag}</span>
+              <span className="deck-name">{d.label}</span>
+              <span className="deck-count">{s.entries}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      {deckStats.cards_pending > 0 && (
+        <div className="deck-pending-hint text-secondary">
+          {deckStats.cards_pending} {deck.label} card{deckStats.cards_pending !== 1 ? 's' : ''} waiting in Quality Control.
+        </div>
+      )}
+
       {/* Quick add */}
       <div className="glass-panel vocab-add">
         <div className="vocab-add-row">
-          <button
-            className="btn btn-secondary lang-toggle"
-            onClick={() => setSourceLang(sourceLang === 'ro' ? 'en' : 'ro')}
-            title="Swap language direction"
-          >
-            {sourceLang.toUpperCase()} <ArrowLeftRight size={14} /> {targetLang.toUpperCase()}
-          </button>
+          <span className="deck-badge">
+            {deck.flag} {deck.label} → {DECKS.find((d) => d.lang === deck.gloss)?.label}
+          </span>
           <span className="text-secondary vocab-hint">
             One word per line, or separate with commas
           </span>
@@ -111,7 +172,7 @@ const VocabSection = ({ onStudyVocab }) => {
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder={sourceLang === 'ro' ? 'cumpătat\nzăpadă\na cumpăra' : 'temperate\nsnow\nto buy'}
+          placeholder={deck.placeholder}
           rows={3}
           disabled={isAdding}
         />
@@ -128,7 +189,7 @@ const VocabSection = ({ onStudyVocab }) => {
             disabled={terms.length === 0 || isAdding}
           >
             <Sparkles size={16} />
-            {isAdding ? 'Looking up...' : 'Add words'}
+            {isAdding ? 'Looking up...' : `Add to ${deck.label}`}
           </button>
         </div>
       </div>
@@ -138,7 +199,7 @@ const VocabSection = ({ onStudyVocab }) => {
 
       {/* Word list */}
       <div className="library-header">
-        <h3 style={{ fontFamily: 'Outfit' }}>Your Words</h3>
+        <h3 style={{ fontFamily: 'Outfit' }}>{deck.label} Words</h3>
         <div className="vocab-search">
           <Search size={14} />
           <input
@@ -154,7 +215,9 @@ const VocabSection = ({ onStudyVocab }) => {
         <div className="loader-container"><div className="spinner"></div></div>
       ) : entries.length === 0 ? (
         <div className="vocab-empty text-secondary">
-          {search ? `No words match "${search}".` : 'No words yet. Add a few above to get started.'}
+          {search
+            ? `No ${deck.label} words match "${search}".`
+            : `No ${deck.label} words yet. Add a few above to get started.`}
         </div>
       ) : (
         <div className="vocab-list">

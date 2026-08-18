@@ -14,6 +14,7 @@ from app.config import get_settings
 from app.database import get_db
 from app.models.document import Document
 from app.models.flashcard import Flashcard
+from app.models.vocab_entry import VocabEntry
 from app.schemas.flashcard import (
     FlashcardListResponse,
     FlashcardResponse,
@@ -128,6 +129,7 @@ async def list_flashcards(
     document_id: Optional[str] = Query(default=None, description="Filter by document ID"),
     card_status: Optional[str] = Query(default=None, description="Filter by status: 'pending' or 'accepted'"),
     card_type: Optional[str] = Query(default=None, description="Filter by type: 'qa' or 'vocab'"),
+    lang: Optional[str] = Query(default=None, description="Vocabulary deck: the language being learned, e.g. 'en' or 'ro'"),
     limit: int = Query(default=100, ge=1, le=1000),
     db: AsyncSession = Depends(get_db),
 ) -> FlashcardListResponse:
@@ -155,6 +157,11 @@ async def list_flashcards(
     if card_type:
         query = query.where(Flashcard.card_type == card_type)
 
+    if lang:
+        query = query.outerjoin(
+            VocabEntry, Flashcard.vocab_entry_id == VocabEntry.id
+        ).where(VocabEntry.source_lang == lang)
+
     # Order by priority score (highest first) for accepted cards
     if status_filter == "accepted":
         query = query.order_by(desc("p_score"))
@@ -176,6 +183,11 @@ async def list_flashcards(
 
     if card_type:
         stats_query = stats_query.where(Flashcard.card_type == card_type)
+
+    if lang:
+        stats_query = stats_query.outerjoin(
+            VocabEntry, Flashcard.vocab_entry_id == VocabEntry.id
+        ).where(VocabEntry.source_lang == lang)
 
     stats_res = await db.execute(stats_query)
     stats = stats_res.one()

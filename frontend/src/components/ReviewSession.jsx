@@ -3,7 +3,7 @@ import { listFlashcards, submitReview } from '../api';
 import { CheckCircle2, Zap } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 
-const ReviewSession = ({ onFinish, cardType = null }) => {
+const ReviewSession = ({ onFinish, cardType = null, lang = null }) => {
   const [priorityCards, setPriorityCards] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);
@@ -13,7 +13,7 @@ const ReviewSession = ({ onFinish, cardType = null }) => {
   useEffect(() => {
     const fetchPriority = async () => {
       try {
-        const res = await listFlashcards(15, cardType);
+        const res = await listFlashcards(15, cardType, lang);
         setPriorityCards(res.flashcards || []);
       } catch (err) {
         console.error("Failed to fetch priority cards", err);
@@ -22,7 +22,7 @@ const ReviewSession = ({ onFinish, cardType = null }) => {
       }
     };
     fetchPriority();
-  }, [cardType]);
+  }, [cardType, lang]);
 
   const handleFlip = () => {
     if (!isFlipped) setIsFlipped(true);
@@ -49,7 +49,7 @@ const ReviewSession = ({ onFinish, cardType = null }) => {
     setIsLoading(true);
     setCurrentIndex(0);
     try {
-      const res = await listFlashcards(15, cardType);
+      const res = await listFlashcards(15, cardType, lang);
       setPriorityCards(res.flashcards || []);
     } catch (err) {
       console.error("Failed to fetch another batch", err);

@@ -13,6 +13,9 @@ function App() {
   const [browseStartIndex, setBrowseStartIndex] = useState(0);
   // null = study everything; 'vocab' or 'qa' narrows the session.
   const [studyType, setStudyType] = useState(null);
+  // Which vocabulary deck (language being learned) to study or open.
+  const [studyLang, setStudyLang] = useState(null);
+  const [vocabLang, setVocabLang] = useState('en');
 
   const handleGenerationSuccess = (count) => {
     setTimeout(() => {
@@ -20,12 +23,18 @@ function App() {
     }, 1500);
   };
 
-  const handleStartReview = (cardType = null) => {
+  const handleStartReview = (cardType = null, lang = null) => {
     setStudyType(cardType);
+    setStudyLang(lang);
     setCurrentView('review');
   };
 
-  const handleStudyVocab = () => handleStartReview('vocab');
+  const handleStudyVocab = (lang = null) => handleStartReview('vocab', lang);
+
+  const handleOpenVocab = (lang = 'en') => {
+    setVocabLang(lang);
+    setCurrentView('vocab');
+  };
 
   const handleReviewNew = () => {
     setCurrentView('review-new');
@@ -51,16 +60,22 @@ function App() {
         <Dashboard 
           onStartReview={() => handleStartReview(null)} 
           onStudyVocab={handleStudyVocab}
-          onAddWords={() => setCurrentView('vocab')} 
+          onAddWords={handleOpenVocab} 
           onReviewNew={handleReviewNew}
           onBrowseCard={handleBrowseCard} 
         />
       )}
       {currentView === 'upload' && <UploadSection onGenerationSuccess={handleGenerationSuccess} />}
       {currentView === 'review' && (
-        <ReviewSession onFinish={handleFinishReview} cardType={studyType} />
+        <ReviewSession
+          onFinish={handleFinishReview}
+          cardType={studyType}
+          lang={studyLang}
+        />
       )}
-      {currentView === 'vocab' && <VocabSection onStudyVocab={handleStudyVocab} />}
+      {currentView === 'vocab' && (
+        <VocabSection onStudyVocab={handleStudyVocab} initialLang={vocabLang} />
+      )}
       {currentView === 'review-new' && <ReviewNewCards onFinish={handleFinishReview} />}
       {currentView === 'browse' && <CardBrowser cards={browseCards} startIndex={browseStartIndex} onClose={handleCloseBrowse} />}
     </Layout>
