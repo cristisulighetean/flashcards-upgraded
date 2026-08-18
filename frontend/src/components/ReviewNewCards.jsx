@@ -3,7 +3,7 @@ import { listPendingFlashcards, acceptFlashcard, deleteFlashcard } from '../api'
 import { CheckCircle2, XCircle, FileText, ChevronLeft } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 
-const ReviewNewCards = ({ onFinish }) => {
+const ReviewNewCards = ({ onFinish, cardType = null }) => {
   const [cards, setCards] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);
@@ -15,7 +15,7 @@ const ReviewNewCards = ({ onFinish }) => {
   useEffect(() => {
     const fetchPending = async () => {
       try {
-        const res = await listPendingFlashcards();
+        const res = await listPendingFlashcards(cardType);
         setCards(res.flashcards || []);
       } catch (err) {
         console.error("Failed to fetch pending cards", err);
@@ -24,7 +24,7 @@ const ReviewNewCards = ({ onFinish }) => {
       }
     };
     fetchPending();
-  }, []);
+  }, [cardType]);
 
   const handleFlip = () => setIsFlipped(f => !f);
 

@@ -29,8 +29,10 @@ class Flashcard(Base):
     card_type: Mapped[str] = mapped_column(
         String(10), nullable=False, default="qa", index=True
     )  # qa | vocab
+    # 20, not 10: "recognition" is 11 characters. SQLite never enforced the
+    # varchar length so this went unnoticed until Postgres did.
     direction: Mapped[Optional[str]] = mapped_column(
-        String(10), nullable=True
+        String(20), nullable=True
     )  # vocab only: ro_en | en_ro
 
     # SM-2 fields

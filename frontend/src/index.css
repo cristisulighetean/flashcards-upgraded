@@ -1015,6 +1015,165 @@ h1, h2, h3, h4, h5, h6 {
   margin-bottom: 1rem;
 }
 
+/* Discarding a word mid-session: available, but never the loudest control. */
+.btn-remove-word {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  opacity: 0.6;
+  padding: 0.4rem 0.6rem;
+  border-radius: var(--radius-sm, 8px);
+  transition: color 0.2s ease, opacity 0.2s ease, background 0.2s ease;
+}
+
+.btn-remove-word:hover {
+  opacity: 1;
+  color: #ff6b6b;
+  background: rgba(255, 107, 107, 0.08);
+}
+
+.card-tools {
+  display: flex;
+  justify-content: center;
+  margin-top: 1rem;
+}
+
+/* First-look step: the word and its meaning shown together, before grading. */
+.learn-card {
+  width: 100%;
+  max-width: 620px;
+  padding: 2.5rem 2rem;
+  text-align: center;
+  border-radius: var(--radius-md, 16px);
+}
+
+.learn-word {
+  font-family: 'Outfit', sans-serif;
+  font-size: 2rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.learn-divider {
+  height: 1px;
+  margin: 1.5rem auto;
+  max-width: 120px;
+  background: linear-gradient(90deg, transparent, var(--accent-cyan), transparent);
+  opacity: 0.6;
+}
+
+.learn-actions {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin-top: 2rem;
+}
+
+/* Progress through the bundled word list, with the button that loads more. */
+.batch-panel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  padding: 0.9rem 1.1rem;
+  margin-bottom: 1rem;
+}
+
+.batch-meter {
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.07);
+  overflow: hidden;
+  margin-top: 0.5rem;
+  max-width: 340px;
+}
+
+.batch-meter-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--accent-cyan), var(--accent-violet, #a855f7));
+}
+
+.batch-preview {
+  font-size: 0.8rem;
+  margin-top: 0.4rem;
+}
+
+/* The gate before Study unlocks: a banner that opens per-deck Quality
+   Control, and the QC screen itself — one word, read once, kept or thrown out. */
+.qc-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  padding: 0.9rem 1.1rem;
+  margin-bottom: 1rem;
+  border: 1px solid rgba(0, 240, 255, 0.2);
+}
+
+.qc-panel {
+  padding: 1.5rem;
+  margin-bottom: 1rem;
+}
+
+.qc-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.75rem;
+  font-size: 0.9rem;
+}
+
+.qc-word {
+  text-align: center;
+  padding: 2rem 1rem;
+}
+
+.qc-word .vocab-translation {
+  font-size: 1.1rem;
+  margin-top: 0.5rem;
+}
+
+.qc-word .vocab-example {
+  margin-top: 0.75rem;
+}
+
+.qc-actions {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  margin-top: 1.5rem;
+}
+
+.qc-discard:hover {
+  border-color: #ff6b6b;
+  color: #ff6b6b;
+}
+
+.qc-done {
+  text-align: center;
+  padding: 3rem 2rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.qc-done .btn {
+  margin-top: 0.5rem;
+}
+
 /* --- Responsive Design (Mobile/iPhone) --- */
 @media (max-width: 768px) {
   .file-info {

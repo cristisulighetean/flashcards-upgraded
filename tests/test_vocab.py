@@ -223,6 +223,70 @@ class TestVocabAPI:
     async def test_delete_missing_entry_returns_404(self, client: AsyncClient):
         assert (await client.delete("/api/v1/vocab/nope")).status_code == 404
 
+    async def test_dismissed_word_can_be_re_added(self, client: AsyncClient):
+        """A word you throw out should be addable again, not blocked forever."""
+        created = await client.post(
+            "/api/v1/vocab/", json={"terms": ["oglinda - mirror"], "enrich": False}
+        )
+        entry_id = created.json()["entries"][0]["id"]
+        await client.delete(f"/api/v1/vocab/{entry_id}")
+
+        again = await client.post(
+            "/api/v1/vocab/", json={"terms": ["oglinda - mirror"], "enrich": False}
+        )
+        assert again.json()["added"] == 1
+        assert again.json()["skipped_duplicates"] == []
+
+    async def test_update_entry_rejects_a_term_already_in_the_deck(self, client: AsyncClient):
+        await client.post("/api/v1/vocab/", json={"terms": ["lup - wolf"], "enrich": False})
+        created = await client.post(
+            "/api/v1/vocab/", json={"terms": ["vulpe - fox"], "enrich": False}
+        )
+        entry_id = created.json()["entries"][0]["id"]
+
+        clash = await client.patch(f"/api/v1/vocab/{entry_id}", json={"term": "Lup"})
+        assert clash.status_code == 409
+
+        # The entry itself is untouched by the rejected update.
+        unchanged = await client.get("/api/v1/vocab/?search=vulpe")
+        assert any(e["id"] == entry_id for e in unchanged.json()["entries"])
+
+    async def test_accept_moves_both_cards_of_a_word_at_once(self, client: AsyncClient):
+        created = await client.post(
+            "/api/v1/vocab/", json={"terms": ["covor - carpet"], "enrich": False}
+        )
+        entry_id = created.json()["entries"][0]["id"]
+
+        accepted = await client.patch(f"/api/v1/vocab/{entry_id}/accept")
+        assert accepted.status_code == 200
+        assert accepted.json()["card_count"] == 2
+
+        cards = (
+            await client.get(f"/api/v1/flashcards/?card_type=vocab&card_status=accepted")
+        ).json()["flashcards"]
+        matched = [c for c in cards if c["vocab_entry_id"] == entry_id]
+        assert len(matched) == 2
+        assert all(c["status"] == "accepted" for c in matched)
+
+    async def test_accept_missing_entry_returns_404(self, client: AsyncClient):
+        assert (await client.patch("/api/v1/vocab/nope/accept")).status_code == 404
+
+    async def test_pending_filter_excludes_accepted_words(self, client: AsyncClient):
+        kept = await client.post(
+            "/api/v1/vocab/", json={"terms": ["lampa - lamp"], "enrich": False}
+        )
+        still_pending = await client.post(
+            "/api/v1/vocab/", json={"terms": ["usa - door"], "enrich": False}
+        )
+        await client.patch(f"/api/v1/vocab/{kept.json()['entries'][0]['id']}/accept")
+
+        r = await client.get("/api/v1/vocab/?pending=true")
+        terms = {e["term"] for e in r.json()["entries"]}
+        assert "usa" in terms
+        assert "lampa" not in terms
+        still_pending_id = still_pending.json()["entries"][0]["id"]
+        assert any(e["id"] == still_pending_id for e in r.json()["entries"])
+
     async def test_search_filters_entries(self, client: AsyncClient):
         await client.post("/api/v1/vocab/", json={"terms": ["pisica - cat"], "enrich": False})
         r = await client.get("/api/v1/vocab/?search=cat")
@@ -249,6 +313,12 @@ class TestLanguageDecks:
         assert body["cards_created"] == 4
         assert body["lang"] == "en"
 
+    async def test_import_rejects_a_whitespace_only_term(self, client: AsyncClient):
+        # min_length=1 alone would let " " through and produce a blank,
+        # unstudiable card once stripped — the schema validator must catch it.
+        r = await self._import(client, "en", [{"term": "   ", "translation": "x"}])
+        assert r.status_code == 422
+
     async def test_imported_words_are_accepted_by_default(self, client: AsyncClient):
         await self._import(client, "en", [{"term": "thrive", "translation": "a prospera"}])
         r = await client.get("/api/v1/flashcards/?card_type=vocab&lang=en")
@@ -273,11 +343,13 @@ class TestLanguageDecks:
         assert again.json()["imported"] == 0
         assert again.json()["skipped_duplicates"] == ["Diligent"]
 
-    async def test_import_rejects_identical_languages(self, client: AsyncClient):
+    async def test_import_accepts_identical_languages(self, client: AsyncClient):
+        """A definition deck explains a word in its own language."""
         r = await client.post("/api/v1/vocab/import", json={
             "lang": "en", "gloss_lang": "en",
-            "entries": [{"term": "x", "translation": "y"}]})
-        assert r.status_code == 422
+            "entries": [{"term": "laconic", "translation": "using very few words"}]})
+        assert r.status_code == 201
+        assert r.json()["imported"] == 1
 
     async def test_lang_filter_separates_the_decks(self, client: AsyncClient):
         await self._import(client, "en", [{"term": "meadow", "translation": "pajiște"}])

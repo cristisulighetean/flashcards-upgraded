@@ -8,8 +8,10 @@ from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from app.database import Base, engine
+from app.config import get_settings
+from app.database import AsyncSessionLocal, Base, engine
 from app.routers import documents, flashcards, reviews, vocab
+from app.services.vocab_seed import seed_startup
 
 logging.basicConfig(
     level=logging.INFO,
@@ -20,12 +22,24 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Create database tables on startup (Alembic handles migrations in prod)."""
+    """Create tables and seed the word decks (Alembic handles migrations in prod)."""
     async with engine.begin() as conn:
         # Import models so SQLAlchemy knows about them
         import app.models  # noqa: F401
         await conn.run_sync(Base.metadata.create_all)
     logger.info("Database tables ready.")
+
+    # Idempotent: the full word list is cataloged (cheap, no cards) once,
+    # then the configured batch count is activated — a no-op thereafter.
+    settings = get_settings()
+    if settings.seed_vocab_on_startup:
+        await seed_startup(
+            AsyncSessionLocal,
+            settings.seed_vocab_lang_list,
+            settings.seed_vocab_batches,
+            settings.seed_vocab_status,
+        )
+
     yield
     await engine.dispose()
     logger.info("Database engine disposed.")

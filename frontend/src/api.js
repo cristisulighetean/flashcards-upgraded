@@ -126,11 +126,15 @@ export const addWords = async (terms, { sourceLang = 'ro', targetLang = 'en', en
   return res.json();
 };
 
-// 9. List vocabulary entries
-export const listVocab = async (search = '', lang = null) => {
+// 9. List vocabulary entries. Capped well below deck size by default — this
+// renders one card per word, so a 2,000-word deck should not mean 2,000 DOM
+// nodes; search narrows down to a specific word instead of paging through all.
+export const listVocab = async (search = '', lang = null, { limit = 30, pending = false } = {}) => {
   const url = new URL(`${API_BASE}/vocab/`, window.location.origin);
   if (search) url.searchParams.append('search', search);
   if (lang) url.searchParams.append('lang', lang);
+  if (pending) url.searchParams.append('pending', 'true');
+  url.searchParams.append('limit', limit);
 
   const res = await fetch(url);
   if (!res.ok) throw new Error('Failed to fetch vocabulary');
@@ -156,6 +160,13 @@ export const deleteVocabEntry = async (entryId) => {
   return true;
 };
 
+// 11b. Approve a word out of Quality Control (both its cards, at once)
+export const acceptVocabEntry = async (entryId) => {
+  const res = await fetch(`${API_BASE}/vocab/${entryId}/accept`, { method: 'PATCH' });
+  if (!res.ok) throw new Error('Failed to accept entry');
+  return res.json();
+};
+
 // 12. Per-deck counts, used by the language tabs
 export const getVocabStats = async () => {
   const res = await fetch(`${API_BASE}/vocab/stats`);
@@ -179,6 +190,28 @@ export const importWords = async (lang, entries, { glossLang = null, accepted = 
   if (!res.ok) {
     const error = await res.json().catch(() => ({}));
     throw new Error(error.detail || 'Failed to import words');
+  }
+  return res.json();
+};
+
+
+// 14. Progress through the bundled word lists, per deck
+export const getDeckBatches = async () => {
+  const res = await fetch(`${API_BASE}/vocab/decks/batches`);
+  if (!res.ok) throw new Error('Failed to fetch word list progress');
+  return res.json();
+};
+
+// 15. Load the next batch of bundled words into a deck
+export const loadNextVocabBatch = async (lang, { cardStatus = 'pending' } = {}) => {
+  const res = await fetch(
+    `${API_BASE}/vocab/decks/${lang}/batches/next?card_status=${cardStatus}`,
+    { method: 'POST' }
+  );
+
+  if (!res.ok) {
+    const error = await res.json().catch(() => ({}));
+    throw new Error(error.detail || 'Failed to load the next batch');
   }
   return res.json();
 };

@@ -26,9 +26,48 @@ class VocabValidationError(ValueError):
     pass
 
 
+def _definition_prompt(lang_name: str) -> str:
+    """
+    Prompt for a definition deck, where a word is explained in its own language.
+
+    The field is still called "translation" — it is whatever goes on the back
+    of the card — but here it holds a monolingual definition, matching the
+    bundled word lists in data/.
+    """
+    return f"""You are a {lang_name} lexicographer building vocabulary flashcards.
+
+For each {lang_name} term you are given, produce:
+- "term": the term, corrected to its standard dictionary form (fix spelling and
+  diacritics; for verbs use the infinitive). Keep the learner's word — do not
+  swap it for a synonym.
+- "translation": a short dictionary definition of the term, written IN
+  {lang_name}. 3-15 words. Do NOT translate the term into another language,
+  and do not repeat the term itself inside the definition.
+- "part_of_speech": one of noun, verb, adjective, adverb, preposition,
+  conjunction, pronoun, interjection, phrase.
+- "example": ONE natural short sentence in {lang_name} using the term.
+- "example_translation": null.
+- "notes": OPTIONAL. Only when genuinely useful — irregular forms, register
+  (formal/slang). Otherwise omit or use null. Keep under 100 characters.
+
+Rules:
+- If a term is misspelled, correct it and define the corrected form.
+- Return one object per input term, in the same order.
+- Respond ONLY with valid JSON in exactly this shape, no markdown wrapper:
+
+{{"entries": [{{"term": "...", "translation": "...", "part_of_speech": "...",
+  "example": "...", "example_translation": null, "notes": null}}]}}"""
+
+
 def _system_prompt(source_lang: str, target_lang: str) -> str:
     src = LANG_NAMES.get(source_lang, source_lang)
     tgt = LANG_NAMES.get(target_lang, target_lang)
+
+    # Same language on both sides: the deck defines words rather than
+    # translating them, so asking for a translation would be nonsense.
+    if source_lang == target_lang:
+        return _definition_prompt(src)
+
     return f"""You are a {src}-{tgt} lexicographer building vocabulary flashcards.
 
 For each {src} term you are given, produce:

@@ -18,7 +18,10 @@ from app.models.vocab_entry import VocabEntry
 from app.schemas.vocab import (
     AddWordsRequest,
     AddWordsResponse,
+    DeckBatchesResponse,
+    DeckBatchProgress,
     DeckStats,
+    LoadBatchResponse,
     ImportRequest,
     ImportResponse,
     VocabEntryResponse,
@@ -29,6 +32,7 @@ from app.schemas.vocab import (
 from app.services.openai_service import LLMRateLimitError
 from app.services.vocab_cards import build_flashcards, sync_flashcards
 from app.services.vocab_enricher import VocabValidationError, enrich_terms
+from app.services.vocab_seed import WORD_LISTS, activate_next_batch, deck_progress, seed_catalog
 
 logger = logging.getLogger(__name__)
 
@@ -62,11 +66,14 @@ async def add_words(
             detail="No usable terms supplied.",
         )
 
-    # Skip words already in this language pair, case-insensitively.
+    # Skip words already in this language pair, case-insensitively. Dismissed
+    # words are excluded here on purpose: a word you threw out should be
+    # addable again if you change your mind, not blocked forever.
     existing_rows = await db.execute(
         select(func.lower(VocabEntry.term)).where(
             VocabEntry.source_lang == request.source_lang,
             VocabEntry.target_lang == request.target_lang,
+            VocabEntry.dismissed.is_(False),
         )
     )
     existing = set(existing_rows.scalars().all())
@@ -157,6 +164,9 @@ async def add_words(
 async def list_entries(
     lang: str | None = Query(default=None, description="Deck: the language being learned"),
     search: str | None = Query(default=None, description="Filter by term or translation"),
+    pending: bool = Query(
+        default=False, description="Only words with at least one card awaiting Quality Control"
+    ),
     limit: int = Query(default=100, ge=1, le=1000),
     db: AsyncSession = Depends(get_db),
 ) -> VocabListResponse:
@@ -167,14 +177,35 @@ async def list_entries(
         .subquery()
     )
 
-    query = (
-        select(VocabEntry, func.coalesce(counts.c.n, 0))
-        .outerjoin(counts, VocabEntry.id == counts.c.vocab_entry_id)
-        .order_by(VocabEntry.created_at.desc())
-        .limit(limit)
+    # Hand-added words (no frequency) come first, newest first; the seeded
+    # word lists follow in order of how common the word is. Quality Control
+    # instead works oldest-added first, so words come up in the order they
+    # were loaded, batch by batch.
+    query = select(VocabEntry, func.coalesce(counts.c.n, 0)).outerjoin(
+        counts, VocabEntry.id == counts.c.vocab_entry_id
     )
+    query = query.where(VocabEntry.dismissed.is_(False))
+    # Cataloged-but-not-yet-activated words (the rest of a bundled list,
+    # sitting in Postgres with no cards) are not "your vocabulary" yet — only
+    # words that have actually been turned into cards show up here.
+    query = query.where(func.coalesce(counts.c.n, 0) > 0)
     if lang:
         query = query.where(VocabEntry.source_lang == lang)
+
+    if pending:
+        pending_entry_ids = select(Flashcard.vocab_entry_id).where(
+            Flashcard.vocab_entry_id.is_not(None), Flashcard.status == "pending"
+        )
+        query = query.where(VocabEntry.id.in_(pending_entry_ids))
+        query = query.order_by(VocabEntry.created_at.asc())
+    else:
+        query = query.order_by(
+            VocabEntry.frequency.is_(None).desc(),
+            VocabEntry.frequency.desc(),
+            VocabEntry.created_at.desc(),
+        )
+
+    query = query.limit(limit)
 
     if search:
         pattern = f"%{search.lower()}%"
@@ -209,6 +240,23 @@ async def update_entry(
         )
 
     updates = request.model_dump(exclude_unset=True)
+
+    new_term = updates.get("term")
+    if new_term and new_term.lower() != entry.term.lower():
+        clash = await db.scalar(
+            select(VocabEntry.id).where(
+                VocabEntry.id != entry_id,
+                VocabEntry.source_lang == entry.source_lang,
+                VocabEntry.dismissed.is_(False),
+                func.lower(VocabEntry.term) == new_term.lower(),
+            )
+        )
+        if clash:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"'{new_term}' is already in this deck.",
+            )
+
     for field, value in updates.items():
         setattr(entry, field, value)
 
@@ -223,12 +271,54 @@ async def update_entry(
     return _to_response(entry, card_count=len(cards))
 
 
+@router.patch(
+    "/{entry_id}/accept",
+    response_model=VocabEntryResponse,
+    summary="Approve a word out of Quality Control",
+)
+async def accept_entry(entry_id: str, db: AsyncSession = Depends(get_db)) -> VocabEntryResponse:
+    """
+    Move every card of a word into the study rotation.
+
+    Quality Control works word by word, not card by card: a word's recognition
+    and production cards say the same thing in two directions, and approving
+    one while the other waits is a distinction without a difference.
+    """
+    entry = (
+        await db.execute(select(VocabEntry).where(VocabEntry.id == entry_id))
+    ).scalar_one_or_none()
+    if not entry:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Vocabulary entry not found."
+        )
+
+    cards = (
+        await db.execute(
+            select(Flashcard).where(Flashcard.vocab_entry_id == entry_id)
+        )
+    ).scalars().all()
+    for card in cards:
+        card.status = "accepted"
+
+    await db.flush()
+    logger.info("Accepted word %r (%d cards)", entry.term, len(cards))
+    return _to_response(entry, card_count=len(cards))
+
+
 @router.delete(
     "/{entry_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    summary="Delete an entry and its cards",
+    summary="Throw a word out of its deck",
 )
 async def delete_entry(entry_id: str, db: AsyncSession = Depends(get_db)) -> None:
+    """
+    Remove a word you do not want to learn, along with its cards.
+
+    A word that came from a bundled list is marked dismissed rather than
+    deleted: the lists are the source of truth for what a deck should contain,
+    so a deleted row would simply be seeded again on the next deployment. The
+    kept row is hidden everywhere and carries no cards.
+    """
     entry = (
         await db.execute(select(VocabEntry).where(VocabEntry.id == entry_id))
     ).scalar_one_or_none()
@@ -239,8 +329,13 @@ async def delete_entry(entry_id: str, db: AsyncSession = Depends(get_db)) -> Non
 
     # Explicit: SQLite does not enforce ON DELETE CASCADE unless pragma is on.
     await db.execute(delete(Flashcard).where(Flashcard.vocab_entry_id == entry_id))
-    await db.delete(entry)
-    logger.info("Deleted vocabulary entry %s and its cards", entry_id)
+
+    if entry.batch is not None:
+        entry.dismissed = True
+        logger.info("Dismissed seeded word %r (%s) and deleted its cards", entry.term, entry_id)
+    else:
+        await db.delete(entry)
+        logger.info("Deleted vocabulary entry %s and its cards", entry_id)
 
 
 @router.get(
@@ -249,10 +344,15 @@ async def delete_entry(entry_id: str, db: AsyncSession = Depends(get_db)) -> Non
     summary="Entry and card counts per language deck",
 )
 async def deck_stats(db: AsyncSession = Depends(get_db)) -> VocabStatsResponse:
+    # "entries" here means activated words (they have cards) — a cataloged
+    # but not-yet-activated word is background data, not part of the deck a
+    # learner sees.
     entry_rows = await db.execute(
-        select(VocabEntry.source_lang, func.count(VocabEntry.id)).group_by(
-            VocabEntry.source_lang
-        )
+        select(VocabEntry.source_lang, func.count(func.distinct(VocabEntry.id)))
+        .select_from(VocabEntry)
+        .join(Flashcard, Flashcard.vocab_entry_id == VocabEntry.id)
+        .where(VocabEntry.dismissed.is_(False))
+        .group_by(VocabEntry.source_lang)
     )
     entry_counts = dict(entry_rows.all())
 
@@ -296,16 +396,16 @@ async def import_words(
     """
     Load a ready-made list into one deck.  Translations are taken as given, so
     this is instant and deterministic — the intended way to seed a deck.
-    """
-    if request.lang == request.gloss_lang:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="The deck language and the gloss language must differ.",
-        )
 
+    `gloss_lang` may equal `lang`: the bundled decks explain each word with a
+    definition in its own language rather than a translation.
+    """
+    # Dismissed words are excluded so a thrown-out word can be re-imported
+    # instead of being silently blocked forever.
     existing_rows = await db.execute(
         select(func.lower(VocabEntry.term)).where(
-            VocabEntry.source_lang == request.lang
+            VocabEntry.source_lang == request.lang,
+            VocabEntry.dismissed.is_(False),
         )
     )
     existing = set(existing_rows.scalars().all())
@@ -356,4 +456,81 @@ async def import_words(
         imported=imported,
         skipped_duplicates=skipped,
         cards_created=cards_created,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Bundled word lists — loaded a batch at a time
+# ---------------------------------------------------------------------------
+
+@router.get(
+    "/decks/batches",
+    response_model=DeckBatchesResponse,
+    summary="How much of each bundled word list is loaded",
+)
+async def list_deck_batches(db: AsyncSession = Depends(get_db)) -> DeckBatchesResponse:
+    """
+    Progress through the shipped word lists, per deck.
+
+    Every word is already cataloged in Postgres (`words_in_catalog`), but that
+    is background data — deployment only *activates* the first few batches
+    into actual cards, so the study queue only ever holds words you have
+    signed up to learn.
+    """
+    return DeckBatchesResponse(
+        decks=[
+            DeckBatchProgress(**await deck_progress(db, lang))
+            for lang in WORD_LISTS
+        ]
+    )
+
+
+@router.post(
+    "/decks/{lang}/batches/next",
+    response_model=LoadBatchResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Load the next batch of words into a deck",
+)
+async def load_next_batch(
+    lang: str,
+    card_status: str = Query(
+        default="pending",
+        pattern="^(accepted|pending)$",
+        description="Route the new cards to Quality Control, or study them straight away",
+    ),
+    db: AsyncSession = Depends(get_db),
+) -> LoadBatchResponse:
+    """
+    Activate the next 500 words of the bundled list, commonest first.
+
+    The words themselves are already sitting in Postgres from cataloging —
+    this only creates their cards, so it is a database write, not a CSV
+    re-parse.
+    """
+    if lang not in WORD_LISTS:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No bundled word list for deck '{lang}'.",
+        )
+
+    # Defensive: guarantees the batch exists as catalog rows even if the app
+    # booted with seeding off. A no-op once the catalog is already complete.
+    await seed_catalog(db, lang)
+
+    batch, added = await activate_next_batch(db, lang, card_status)
+    if added == 0:
+        progress = await deck_progress(db, lang)
+        if progress["next_batch"] is None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"The '{lang}' word list is fully loaded ({progress['words_loaded']} words).",
+            )
+
+    logger.info("Activated batch %d of the '%s' deck: %d words", batch, lang, added)
+    return LoadBatchResponse(
+        lang=lang,
+        batch=batch,
+        entries_added=added,
+        cards_created=added * 2,
+        progress=DeckBatchProgress(**await deck_progress(db, lang)),
     )

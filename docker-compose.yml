@@ -1,23 +1,60 @@
 services:
+  db:
+    image: postgres:16-alpine
+    container_name: flashcards_db
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+      - POSTGRES_DB=${POSTGRES_DB:-flashcards}
+    volumes:
+      - flashcards_pgdata:/var/lib/postgresql/data
+    ports:
+      # Host-side 5433: this machine already runs a native Postgres on 5432,
+      # and its loopback bind wins over Docker's, silently swallowing
+      # connections meant for this container. Backend traffic never goes
+      # through this mapping anyway — it talks to `db:5432` over the compose
+      # network. This port is only for connecting a host tool (psql, a GUI
+      # client) to the containerized database.
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-flashcards}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
   backend:
     build: .
     container_name: flashcards_backend
     environment:
-      - DATABASE_URL=sqlite+aiosqlite:///./flashcards.db
+      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-flashcards}
       - GROQ_API_KEY=${GROQ_API_KEY}
       - GROQ_MODEL=${GROQ_MODEL:-llama-3.1-8b-instant}
       - GROQ_BASE_URL=${GROQ_BASE_URL:-https://api.groq.com/openai/v1}
-    volumes:
-      - ./flashcards.db:/app/flashcards.db
+      - SEED_VOCAB_ON_STARTUP=${SEED_VOCAB_ON_STARTUP:-true}
+      - SEED_VOCAB_BATCHES=${SEED_VOCAB_BATCHES:-1}
+      - SEED_VOCAB_LANGS=${SEED_VOCAB_LANGS:-en,ro}
+      - SEED_VOCAB_STATUS=${SEED_VOCAB_STATUS:-pending}
+    depends_on:
+      db:
+        condition: service_healthy
     ports:
       - "8000:8000"
 
   frontend:
     build: ./frontend
     container_name: flashcards_frontend
+    environment:
+      # Plain HTTP: whatever proxies this container terminates TLS. Flip to
+      # 'true' only to serve a self-signed cert straight from the container.
+      - PREVIEW_HTTPS=${PREVIEW_HTTPS:-false}
     ports:
       - "3000:80"
     depends_on:
       - backend
+
+volumes:
+  # Named, not bind-mounted: this is what carries over cleanly to a
+  # Kubernetes PersistentVolumeClaim later, unlike a host path.
+  flashcards_pgdata:
 
 

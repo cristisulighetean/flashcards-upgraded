@@ -16,7 +16,9 @@ env/
 .env
 .env.local
 
-# Databases — flashcards.db is deliberately tracked (docker-compose mounts it)
+# Databases — the app runs on Postgres now (see docker-compose.yml's `db`
+# service). flashcards.db is deliberately kept as the pre-migration snapshot,
+# not a live file docker-compose mounts anymore.
 *.db
 *.sqlite
 *.sqlite3

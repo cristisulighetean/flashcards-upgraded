@@ -6,10 +6,11 @@ from app.config import get_settings
 settings = get_settings()
 
 engine = create_async_engine(
-        settings.database_url,
-        echo=False,
-        # SQLite does not support standard pooling
-    )
+    settings.database_url,
+    echo=False,
+    # SQLAlchemy already picks the right pool per dialect: NullPool for
+    # SQLite (as in the test suite), a real connection pool for Postgres.
+)
 
 AsyncSessionLocal = async_sessionmaker(
     bind=engine,

@@ -1,14 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { listFlashcards, listPendingFlashcards, getVocabStats } from '../api';
-import { BookOpen, Layers, Zap, ShieldCheck, ChevronDown, ChevronRight, FileText, Languages } from 'lucide-react';
+import { listFlashcards, listPendingFlashcards } from '../api';
+import { BookOpen, Layers, Zap, ShieldCheck, ChevronDown, ChevronRight, FileText } from 'lucide-react';
 
-const DECK_NAMES = { en: 'English', ro: 'Romanian' };
-
-const Dashboard = ({ onStartReview, onReviewNew, onBrowseCard, onStudyVocab, onAddWords }) => {
+const Dashboard = ({ onStartReview, onReviewNew, onBrowseCard }) => {
   const [cards, setCards] = useState([]);
   const [stats, setStats] = useState({ inventory: 0, mastery: 0, focus: 0 });
   const [pendingCount, setPendingCount] = useState(0);
-  const [vocabDecks, setVocabDecks] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [expandedGroups, setExpandedGroups] = useState(new Set());
 
@@ -16,22 +13,23 @@ const Dashboard = ({ onStartReview, onReviewNew, onBrowseCard, onStudyVocab, onA
     const fetchStats = async () => {
       try {
         setIsLoading(true);
-        // Get accepted cards for library & review (fetch more for the grouped view)
-        const all = await listFlashcards(100);
-        // Get pending count for quality control
-        const pending = await listPendingFlashcards();
-        const vocab = await getVocabStats();
+        // Document-generated cards only: this whole page — stats, "Study
+        // Collection", and the Library below — is the qa-card home now that
+        // vocabulary has its own page with its own stats and study buttons.
+        // Mixing the two here would make the Inventory tile disagree with
+        // what the Library section actually shows.
+        const all = await listFlashcards(100, 'qa');
+        const pending = await listPendingFlashcards('qa');
 
         setCards(all.flashcards || []);
-        setVocabDecks(vocab.decks || []);
-        
+
         // Use global stats from API metadata
         setStats({
           inventory: all.total_inventory || 0,
           mastery: all.avg_mastery || 0,
           focus: all.needs_focus_count || 0
         });
-        
+
         setPendingCount(pending.total || 0);
       } catch (err) {
         console.error('Failed to load flashcards', err);
@@ -51,15 +49,18 @@ const Dashboard = ({ onStartReview, onReviewNew, onBrowseCard, onStudyVocab, onA
     });
   };
 
-  // Grouping logic
-  const groupedCards = cards.reduce((acc, card) => {
-    const key = card.document_filename || 'Other Concepts';
+  // `cards` is already qa-only from the fetch above; this filter is a cheap
+  // guard against a card with no document_filename (defensive, not expected).
+  const libraryCards = cards.filter((card) => card.document_filename);
+
+  const groupedCards = libraryCards.reduce((acc, card) => {
+    const key = card.document_filename;
     if (!acc[key]) acc[key] = [];
     acc[key].push(card);
     return acc;
   }, {});
 
-  const totalCards = cards.length;
+  const totalCards = libraryCards.length;
 
   if (isLoading) {
     return <div className="loader-container" style={{marginTop: '100px'}}><div className="spinner"></div></div>;
@@ -75,7 +76,7 @@ const Dashboard = ({ onStartReview, onReviewNew, onBrowseCard, onStudyVocab, onA
 
         <div className="dashboard-actions">
           {pendingCount > 0 && (
-            <button 
+            <button
               className="btn btn-secondary"
               onClick={onReviewNew}
               style={{ borderColor: 'var(--accent-cyan)', color: 'var(--accent-cyan)' }}
@@ -83,33 +84,8 @@ const Dashboard = ({ onStartReview, onReviewNew, onBrowseCard, onStudyVocab, onA
               <ShieldCheck size={18} /> Quality Control ({pendingCount})
             </button>
           )}
-          
-          {vocabDecks.length === 0 ? (
-            <button className="btn btn-secondary" onClick={() => onAddWords('en')}>
-              <Languages size={18} /> Add Vocabulary
-            </button>
-          ) : (
-            vocabDecks.map((deck) => {
-              const name = DECK_NAMES[deck.lang] || deck.lang.toUpperCase();
-              return (
-                <button
-                  key={deck.lang}
-                  className="btn btn-secondary"
-                  onClick={() =>
-                    deck.cards_accepted > 0 ? onStudyVocab(deck.lang) : onAddWords(deck.lang)
-                  }
-                  title={`${deck.entries} words in the ${name} deck`}
-                >
-                  <Languages size={18} />
-                  {deck.cards_accepted > 0
-                    ? `Study ${name} (${deck.cards_accepted})`
-                    : `${name} Words (${deck.entries})`}
-                </button>
-              );
-            })
-          )}
 
-          <button 
+          <button
             className="btn btn-primary"
             onClick={onStartReview}
             disabled={stats.inventory === 0}
@@ -141,7 +117,7 @@ const Dashboard = ({ onStartReview, onReviewNew, onBrowseCard, onStudyVocab, onA
         <h3 style={{ fontFamily: 'Outfit' }}>Library</h3>
         {totalCards > 0 && (
           <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-            Categorized by file · {cards.length} cards visible
+            Categorized by file · {totalCards} cards visible
           </span>
         )}
       </div>
@@ -183,15 +159,16 @@ const Dashboard = ({ onStartReview, onReviewNew, onBrowseCard, onStudyVocab, onA
                   <div className="category-content" style={{ paddingTop: '1rem', paddingLeft: '1rem' }}>
                     <div className="cards-grid">
                       {groupCards.map((card) => {
-                        // Find global index for onBrowseCard consistency
-                        const globalIndex = cards.findIndex(c => c.id === card.id);
+                        // Index within the library, so browsing steps
+                        // through file-backed cards only.
+                        const cardIndex = libraryCards.findIndex(c => c.id === card.id);
                         return (
                           <div
                             key={card.id}
                             className="mini-card glass-panel"
                             onClick={(e) => {
                               e.stopPropagation();
-                              onBrowseCard(cards, globalIndex);
+                              onBrowseCard(libraryCards, cardIndex);
                             }}
                             style={{ cursor: 'pointer', display: 'flex', flexDirection: 'column' }}
                           >

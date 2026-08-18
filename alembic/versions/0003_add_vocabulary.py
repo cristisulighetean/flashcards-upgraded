@@ -38,7 +38,9 @@ def upgrade() -> None:
         batch.add_column(
             sa.Column("card_type", sa.String(10), nullable=False, server_default="qa")
         )
-        batch.add_column(sa.Column("direction", sa.String(10), nullable=True))
+        # 20, not 10: "recognition" is 11 characters — SQLite's varchar(10)
+        # never enforced that, Postgres's does.
+        batch.add_column(sa.Column("direction", sa.String(20), nullable=True))
         batch.alter_column("document_id", existing_type=sa.String(36), nullable=True)
         batch.create_foreign_key(
             "fk_flashcards_vocab_entry",
