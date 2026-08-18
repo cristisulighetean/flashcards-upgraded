@@ -126,16 +126,14 @@ const ReviewNewCards = ({ onFinish }) => {
   return (
     <div style={{ animation: 'fadeIn 0.3s ease' }}>
       {/* Top bar */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
-        <button className="btn btn-secondary" onClick={onFinish} style={{ gap: '0.4rem', padding: '0.5rem 1rem', fontSize: '0.9rem' }}>
+      <div className="card-toolbar">
+        <button className="btn btn-secondary" onClick={onFinish}>
           <ChevronLeft size={16} /> Dashboard
         </button>
-        <div style={{ textAlign: 'center' }}>
-          <span style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
-            Quality Control — Card {currentIndex + 1} of {cards.length}
-          </span>
-        </div>
-        <div style={{ display: 'flex', gap: '1rem', fontSize: '0.85rem' }}>
+        <span className="card-toolbar-status">
+          Quality Control — Card {currentIndex + 1} of {cards.length}
+        </span>
+        <div className="card-toolbar-counts">
           <span style={{ color: '#2ed573' }}>✓ {acceptedCount}</span>
           <span style={{ color: '#ff4757' }}>✕ {discardedCount}</span>
         </div>
@@ -143,29 +141,25 @@ const ReviewNewCards = ({ onFinish }) => {
 
       {/* Source file */}
       {currentCard.document_filename && (
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '1rem',
-          padding: '0.4rem 0.8rem', background: 'rgba(112, 0, 255, 0.1)',
-          borderRadius: 'var(--radius-sm)', width: 'fit-content', fontSize: '0.8rem', color: 'var(--accent-cyan)',
-        }}>
+        <div className="source-badge">
           <FileText size={13} />
           {currentCard.document_filename}
         </div>
       )}
 
       {/* Progress bar */}
-      <div style={{ width: '100%', height: '4px', background: 'rgba(255,255,255,0.1)', borderRadius: '2px', marginBottom: '2.5rem' }}>
-        <div style={{ width: `${progressPercent}%`, height: '100%', background: 'var(--accent-gradient)', borderRadius: '2px', transition: 'width 0.3s ease' }} />
+      <div className="progress-track">
+        <div className="progress-fill" style={{ width: `${progressPercent}%` }} />
       </div>
 
       {/* Card */}
       <div className="review-container" style={{ maxWidth: '800px', margin: '0 auto' }}>
-        <div className="scene" onClick={handleFlip} style={{ height: isFlipped ? 'auto' : '340px', minHeight: '220px' }}>
-          <div className={`flashcard ${isFlipped ? 'is-flipped' : ''}`} style={{ height: isFlipped ? 'auto' : '340px', minHeight: '220px' }}>
+        <div className="scene scene-compact" onClick={handleFlip}>
+          <div className={`flashcard ${isFlipped ? 'is-flipped' : ''}`}>
 
             {/* Front */}
-            <div className="card-face card-front glass-panel" style={{ padding: '3rem', minHeight: '220px' }}>
-              <div className="card-content" style={{ fontSize: '1.4rem', lineHeight: '1.5' }}>
+            <div className="card-face card-front glass-panel">
+              <div className="card-content">
                 {currentCard.question}
               </div>
               {!isFlipped && (
@@ -174,18 +168,9 @@ const ReviewNewCards = ({ onFinish }) => {
             </div>
 
             {/* Back */}
-            <div className="card-face card-back glass-panel" style={{
-              transform: 'rotateX(180deg)',
-              padding: '2.5rem',
-              overflowY: 'auto',
-              maxHeight: '70vh',
-              alignItems: 'flex-start',
-              textAlign: 'left',
-            }}>
-              <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--accent-cyan)', marginBottom: '1rem', fontWeight: '600' }}>
-                Answer
-              </div>
-              <div className="markdown-content" style={{ color: 'var(--text-primary)', lineHeight: '1.7', fontSize: '1.05rem', fontFamily: 'inherit' }}>
+            <div className="card-face card-back glass-panel">
+              <div className="card-back-label">Answer</div>
+              <div className="markdown-content">
                 <ReactMarkdown>{currentCard.answer}</ReactMarkdown>
               </div>
             </div>
@@ -194,49 +179,19 @@ const ReviewNewCards = ({ onFinish }) => {
         </div>
 
         {/* Accept / Discard actions */}
-        <div style={{ display: 'flex', gap: '1rem', marginTop: '2rem', justifyContent: 'center' }}>
-          <button
-            className="btn"
-            onClick={handleDiscard}
-            disabled={isActioning}
-            style={{
-              background: 'rgba(255, 71, 87, 0.1)',
-              border: '1px solid rgba(255, 71, 87, 0.3)',
-              color: '#ff4757',
-              gap: '0.5rem',
-              minWidth: '160px',
-              fontSize: '1rem',
-              padding: '0.85rem 1.5rem',
-            }}
-          >
+        <div className="card-actions">
+          <button className="btn btn-danger" onClick={handleDiscard} disabled={isActioning}>
             <XCircle size={18} /> Discard
           </button>
-          <button
-            className="btn btn-secondary"
-            onClick={handleFlip}
-            style={{ minWidth: '120px' }}
-          >
+          <button className="btn btn-secondary" onClick={handleFlip}>
             {isFlipped ? 'Hide Answer' : 'Show Answer'}
           </button>
-          <button
-            className="btn"
-            onClick={handleAccept}
-            disabled={isActioning}
-            style={{
-              background: 'rgba(46, 213, 115, 0.1)',
-              border: '1px solid rgba(46, 213, 115, 0.3)',
-              color: '#2ed573',
-              gap: '0.5rem',
-              minWidth: '160px',
-              fontSize: '1rem',
-              padding: '0.85rem 1.5rem',
-            }}
-          >
+          <button className="btn btn-success" onClick={handleAccept} disabled={isActioning}>
             <CheckCircle2 size={18} /> Accept
           </button>
         </div>
 
-        <p style={{ textAlign: 'center', color: 'var(--text-secondary)', fontSize: '0.8rem', marginTop: '1rem', opacity: 0.6 }}>
+        <p className="keyboard-hint">
           Keyboard: A = accept · D = discard · Space = flip
         </p>
       </div>

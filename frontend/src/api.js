@@ -44,9 +44,10 @@ export const generateFlashcards = async (documentId, numCards = null) => {
 };
 
 // 3. List Flashcards (Adaptive Priority Sorted)
-export const listFlashcards = async (limit = 100) => {
+export const listFlashcards = async (limit = 100, cardType = null) => {
   const url = new URL(`${API_BASE}/flashcards/`, window.location.origin);
   url.searchParams.append('limit', limit);
+  if (cardType) url.searchParams.append('card_type', cardType);
   
   const res = await fetch(url);
   if (!res.ok) throw new Error('Failed to fetch flashcards');
@@ -79,9 +80,10 @@ export const deleteFlashcard = async (flashcardId) => {
 };
 
 // 6. List Pending Flashcards (quality control queue)
-export const listPendingFlashcards = async () => {
+export const listPendingFlashcards = async (cardType = null) => {
   const url = new URL(`${API_BASE}/flashcards/`, window.location.origin);
   url.searchParams.append('card_status', 'pending');
+  if (cardType) url.searchParams.append('card_type', cardType);
 
   const res = await fetch(url);
   if (!res.ok) throw new Error('Failed to fetch pending flashcards');
@@ -96,4 +98,58 @@ export const acceptFlashcard = async (flashcardId) => {
 
   if (!res.ok) throw new Error('Failed to accept flashcard');
   return res.json();
+};
+
+// --- Vocabulary ---
+
+// 8. Add words (AI fills translation, part of speech and an example)
+export const addWords = async (terms, { sourceLang = 'ro', targetLang = 'en', enrich = true } = {}) => {
+  const res = await fetch(`${API_BASE}/vocab/`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      terms,
+      source_lang: sourceLang,
+      target_lang: targetLang,
+      enrich,
+    }),
+  });
+
+  if (res.status === 429) {
+    throw new Error('AI Rate Limit Reached: please wait about a minute and try again.');
+  }
+  if (!res.ok) {
+    const error = await res.json().catch(() => ({}));
+    throw new Error(error.detail || 'Failed to add words');
+  }
+  return res.json();
+};
+
+// 9. List vocabulary entries
+export const listVocab = async (search = '') => {
+  const url = new URL(`${API_BASE}/vocab/`, window.location.origin);
+  if (search) url.searchParams.append('search', search);
+
+  const res = await fetch(url);
+  if (!res.ok) throw new Error('Failed to fetch vocabulary');
+  return res.json();
+};
+
+// 10. Correct an entry (regenerates card text, keeps review history)
+export const updateVocabEntry = async (entryId, fields) => {
+  const res = await fetch(`${API_BASE}/vocab/${entryId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(fields),
+  });
+
+  if (!res.ok) throw new Error('Failed to update entry');
+  return res.json();
+};
+
+// 11. Delete an entry and its cards
+export const deleteVocabEntry = async (entryId) => {
+  const res = await fetch(`${API_BASE}/vocab/${entryId}`, { method: 'DELETE' });
+  if (!res.ok) throw new Error('Failed to delete entry');
+  return true;
 };

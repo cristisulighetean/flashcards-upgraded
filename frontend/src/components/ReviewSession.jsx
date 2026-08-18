@@ -3,7 +3,7 @@ import { listFlashcards, submitReview } from '../api';
 import { CheckCircle2, Zap } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 
-const ReviewSession = ({ onFinish }) => {
+const ReviewSession = ({ onFinish, cardType = null }) => {
   const [priorityCards, setPriorityCards] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);
@@ -13,7 +13,7 @@ const ReviewSession = ({ onFinish }) => {
   useEffect(() => {
     const fetchPriority = async () => {
       try {
-        const res = await listFlashcards(15);
+        const res = await listFlashcards(15, cardType);
         setPriorityCards(res.flashcards || []);
       } catch (err) {
         console.error("Failed to fetch priority cards", err);
@@ -22,7 +22,7 @@ const ReviewSession = ({ onFinish }) => {
       }
     };
     fetchPriority();
-  }, []);
+  }, [cardType]);
 
   const handleFlip = () => {
     if (!isFlipped) setIsFlipped(true);
@@ -49,7 +49,7 @@ const ReviewSession = ({ onFinish }) => {
     setIsLoading(true);
     setCurrentIndex(0);
     try {
-      const res = await listFlashcards(15);
+      const res = await listFlashcards(15, cardType);
       setPriorityCards(res.flashcards || []);
     } catch (err) {
       console.error("Failed to fetch another batch", err);
@@ -116,7 +116,8 @@ const ReviewSession = ({ onFinish }) => {
 
           {/* Back */}
           <div className="card-face card-back glass-panel">
-            <div className="markdown-content" style={{ color: 'var(--accent-cyan)', lineHeight: '1.7', fontSize: '1.05rem', width: '100%' }}>
+            <div className="card-back-label">Answer</div>
+            <div className="markdown-content">
               <ReactMarkdown>{currentCard.answer}</ReactMarkdown>
             </div>
           </div>

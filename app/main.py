@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.database import Base, engine
-from app.routers import documents, flashcards, reviews
+from app.routers import documents, flashcards, reviews, vocab
 
 logging.basicConfig(
     level=logging.INFO,
@@ -84,6 +84,7 @@ API_PREFIX = "/api/v1"
 app.include_router(documents.router, prefix=API_PREFIX)
 app.include_router(flashcards.router, prefix=API_PREFIX)
 app.include_router(reviews.router, prefix=API_PREFIX)
+app.include_router(vocab.router, prefix=API_PREFIX)
 
 
 @app.get("/health", tags=["Health"])

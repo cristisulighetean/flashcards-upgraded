@@ -1,8 +1,35 @@
-frontend/node_modules
+# Python bytecode & caches
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Environment / secrets
 .env
-.venv
-.pytest_cache
-alembic/__pycache__
-app/__pycache__
-frontend/dist
-tests/__pycache__
+.env.local
+
+# Databases — flashcards.db is deliberately tracked (docker-compose mounts it)
+*.db
+*.sqlite
+*.sqlite3
+!flashcards.db
+
+# Node / frontend build
+node_modules/
+frontend/dist/
+frontend/node_modules/
+*.log
+npm-debug.log*
+
+# Editor & OS noise
+.vscode/
+.idea/
+.DS_Store

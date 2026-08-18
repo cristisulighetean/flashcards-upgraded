@@ -90,29 +90,18 @@ const CardBrowser = ({ cards: initialCards, startIndex = 0, onClose, onCardDelet
   return (
     <div style={{ animation: 'fadeIn 0.3s ease' }}>
       {/* Top bar */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '2rem' }}>
-        <button
-          className="btn btn-secondary"
-          onClick={onClose}
-          style={{ gap: '0.4rem', padding: '0.5rem 1rem', fontSize: '0.9rem' }}
-        >
+      <div className="card-toolbar">
+        <button className="btn btn-secondary" onClick={onClose}>
           <ChevronLeft size={16} /> Library
         </button>
-        <span style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
+        <span className="card-toolbar-status">
           Card {safeIndex + 1} of {cards.length}
         </span>
         {/* Delete button */}
         <button
-          className="btn btn-secondary"
+          className={`btn ${showDeleteConfirm ? 'btn-danger' : 'btn-secondary'}`}
           onClick={handleDelete}
           disabled={isDeleting}
-          style={{
-            gap: '0.4rem',
-            padding: '0.5rem 1rem',
-            fontSize: '0.9rem',
-            color: showDeleteConfirm ? '#ff4757' : 'var(--text-secondary)',
-            borderColor: showDeleteConfirm ? 'rgba(255, 71, 87, 0.4)' : undefined,
-          }}
         >
           <Trash2 size={14} />
           {isDeleting ? 'Deleting...' : showDeleteConfirm ? 'Confirm Delete' : 'Delete'}
@@ -121,18 +110,7 @@ const CardBrowser = ({ cards: initialCards, startIndex = 0, onClose, onCardDelet
 
       {/* Source file badge */}
       {currentCard.document_filename && (
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '0.4rem',
-          marginBottom: '1rem',
-          padding: '0.4rem 0.8rem',
-          background: 'rgba(112, 0, 255, 0.1)',
-          borderRadius: 'var(--radius-sm)',
-          width: 'fit-content',
-          fontSize: '0.8rem',
-          color: 'var(--accent-cyan)',
-        }}>
+        <div className="source-badge">
           <FileText size={13} />
           {currentCard.document_filename}
         </div>
@@ -163,18 +141,18 @@ const CardBrowser = ({ cards: initialCards, startIndex = 0, onClose, onCardDelet
       )}
 
       {/* Progress bar */}
-      <div style={{ width: '100%', height: '4px', background: 'rgba(255,255,255,0.1)', borderRadius: '2px', marginBottom: '2.5rem' }}>
-        <div style={{ width: `${progressPercent}%`, height: '100%', background: 'var(--accent-gradient)', borderRadius: '2px', transition: 'width 0.3s ease' }} />
+      <div className="progress-track">
+        <div className="progress-fill" style={{ width: `${progressPercent}%` }} />
       </div>
 
       {/* Card */}
-      <div className="review-container" style={{ maxWidth: '800px', margin: '0 auto' }}>
-        <div className="scene" onClick={handleFlip} style={{ height: isFlipped ? 'auto' : '340px', minHeight: '220px' }}>
-          <div className={`flashcard ${isFlipped ? 'is-flipped' : ''}`} style={{ height: isFlipped ? 'auto' : '340px', minHeight: '220px' }}>
+      <div className="review-container">
+        <div className="scene scene-compact" onClick={handleFlip}>
+          <div className={`flashcard ${isFlipped ? 'is-flipped' : ''}`}>
 
             {/* Front */}
-            <div className="card-face card-front glass-panel" style={{ padding: '3rem', minHeight: '220px' }}>
-              <div className="card-content" style={{ fontSize: '1.4rem', lineHeight: '1.5' }}>
+            <div className="card-face card-front glass-panel">
+              <div className="card-content">
                 {currentCard.question}
               </div>
               {!isFlipped && (
@@ -183,21 +161,12 @@ const CardBrowser = ({ cards: initialCards, startIndex = 0, onClose, onCardDelet
             </div>
 
             {/* Back — scrollable for longer answers */}
-            <div className="card-face card-back glass-panel" style={{
-              transform: 'rotateX(180deg)',
-              padding: '2.5rem',
-              overflowY: 'auto',
-              maxHeight: '70vh',
-              alignItems: 'flex-start',
-              textAlign: 'left',
-            }}>
-              <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--accent-cyan)', marginBottom: '1rem', fontWeight: '600' }}>
-                Answer
-              </div>
-              <div className="markdown-content" style={{ color: 'var(--text-primary)', lineHeight: '1.7', fontSize: '1.05rem', fontFamily: 'inherit' }}>
+            <div className="card-face card-back glass-panel">
+              <div className="card-back-label">Answer</div>
+              <div className="markdown-content">
                 <ReactMarkdown>{currentCard.answer}</ReactMarkdown>
               </div>
-              <div className="card-hint" style={{ position: 'static', marginTop: '1.5rem', opacity: 0.5 }}>
+              <div className="card-hint card-hint-inline">
                 Click to flip back
               </div>
             </div>
@@ -206,27 +175,17 @@ const CardBrowser = ({ cards: initialCards, startIndex = 0, onClose, onCardDelet
         </div>
 
         {/* Navigation */}
-        <div style={{ display: 'flex', gap: '1rem', marginTop: '2rem', justifyContent: 'center' }}>
-          <button
-            className="btn btn-secondary"
-            onClick={goPrev}
-            disabled={safeIndex === 0}
-            style={{ gap: '0.5rem' }}
-          >
+        <div className="card-actions">
+          <button className="btn btn-secondary" onClick={goPrev} disabled={safeIndex === 0}>
             <ArrowLeft size={16} /> Previous
           </button>
-          <button
-            className="btn btn-secondary"
-            onClick={handleFlip}
-            style={{ minWidth: '120px' }}
-          >
+          <button className="btn btn-secondary" onClick={handleFlip}>
             {isFlipped ? 'Hide Answer' : 'Show Answer'}
           </button>
           <button
             className="btn btn-secondary"
             onClick={goNext}
             disabled={safeIndex === cards.length - 1}
-            style={{ gap: '0.5rem' }}
           >
             Next <ArrowRight size={16} />
           </button>

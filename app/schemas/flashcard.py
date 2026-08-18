@@ -8,7 +8,8 @@ class FlashcardResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: str
-    document_id: str
+    document_id: Optional[str] = None
+    vocab_entry_id: Optional[str] = None
     question: str
     answer: str
     ease_factor: float
@@ -16,6 +17,8 @@ class FlashcardResponse(BaseModel):
     repetitions: int
     created_at: datetime
     status: str = "accepted"
+    card_type: str = "qa"
+    direction: Optional[str] = None
     priority_score: float = 0.0
     document_filename: Optional[str] = None
 

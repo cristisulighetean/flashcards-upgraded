@@ -244,6 +244,7 @@ h1, h2, h3, h4, h5, h6 {
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  width: 100%;
   padding: 1rem 1.5rem;
   background: rgba(255, 255, 255, 0.05);
   border-radius: var(--radius-sm);
@@ -420,12 +421,35 @@ h1, h2, h3, h4, h5, h6 {
   transform: rotateX(180deg);
   background: rgba(40, 44, 61, 0.8);
   border-color: rgba(255,255,255,0.15);
+  /* Long markdown answers scroll inside the face instead of overflowing it. */
+  overflow-y: auto;
+  max-height: 70vh;
+  align-items: flex-start;
+  text-align: left;
+  padding: 2.5rem;
 }
 
 .card-content {
   font-size: 1.5rem;
   font-weight: 500;
   line-height: 1.4;
+}
+
+/* "Answer" caption at the top of a flipped card. */
+.card-back-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--accent-cyan);
+  margin-bottom: 1rem;
+}
+
+.card-back .markdown-content {
+  width: 100%;
+  color: var(--text-primary);
+  line-height: 1.7;
+  font-size: 1.05rem;
 }
 
 .card-hint {
@@ -435,6 +459,13 @@ h1, h2, h3, h4, h5, h6 {
   color: var(--text-secondary);
   opacity: 0.6;
   animation: pulse 2s infinite;
+}
+
+/* Hint that sits in the flow of a scrolling answer rather than pinned. */
+.card-hint-inline {
+  position: static;
+  margin-top: 1.5rem;
+  opacity: 0.5;
 }
 
 /* Grading Actions */
@@ -637,13 +668,6 @@ h1, h2, h3, h4, h5, h6 {
   margin-bottom: 1.5rem;
 }
 
-.card-back {
-  overflow-y: auto;
-  align-items: flex-start;
-  text-align: left;
-  padding: 2.5rem;
-}
-
 .grading-label {
   margin-bottom: 1rem;
 }
@@ -656,8 +680,269 @@ h1, h2, h3, h4, h5, h6 {
   max-width: 600px;
 }
 
-.file-info {
+/* --- Card browsing / quality-control screens --- */
+
+/* Shorter scene than a study session. The height stays fixed because the two
+   card faces are absolutely positioned and so contribute no height of their
+   own — an auto height collapses the card. Long answers scroll inside
+   .card-back instead. */
+.scene-compact {
+  height: 340px;
+}
+
+/* Header row above a card: back button, position counter, actions. */
+.card-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 1.5rem;
+}
+
+.card-toolbar-status {
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  text-align: center;
+}
+
+.card-toolbar-counts {
+  display: flex;
+  gap: 1rem;
+  font-size: 0.85rem;
+}
+
+/* Button row beneath a card (prev/flip/next, accept/discard). */
+.card-actions {
+  display: flex;
+  gap: 1rem;
+  margin-top: 2rem;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.card-actions .btn {
+  min-width: 120px;
+}
+
+.btn-danger {
+  background: rgba(255, 71, 87, 0.1);
+  border: 1px solid rgba(255, 71, 87, 0.3);
+  color: #ff4757;
+}
+
+.btn-danger:hover:not(:disabled) {
+  background: rgba(255, 71, 87, 0.2);
+}
+
+.btn-success {
+  background: rgba(46, 213, 115, 0.1);
+  border: 1px solid rgba(46, 213, 115, 0.3);
+  color: #2ed573;
+}
+
+.btn-success:hover:not(:disabled) {
+  background: rgba(46, 213, 115, 0.2);
+}
+
+/* Source-document badge shown above a card. */
+.source-badge {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  width: fit-content;
+  max-width: 100%;
+  margin-bottom: 1rem;
+  padding: 0.4rem 0.8rem;
+  background: rgba(112, 0, 255, 0.1);
+  border-radius: var(--radius-sm);
+  font-size: 0.8rem;
+  color: var(--accent-cyan);
+  overflow-wrap: anywhere;
+}
+
+.progress-track {
   width: 100%;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+  margin-bottom: 2.5rem;
+}
+
+.progress-fill {
+  height: 100%;
+  background: var(--accent-gradient);
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+
+.keyboard-hint {
+  text-align: center;
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  margin-top: 1rem;
+  opacity: 0.6;
+}
+
+
+/* --- Vocabulary --- */
+.vocab-add {
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.vocab-add-row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+
+.lang-toggle {
+  gap: 0.5rem;
+  padding: 0.4rem 0.9rem;
+  font-size: 0.85rem;
+  letter-spacing: 0.05em;
+}
+
+.vocab-hint {
+  font-size: 0.8rem;
+}
+
+.vocab-input {
+  width: 100%;
+  padding: 1rem;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-family: 'Inter', sans-serif;
+  font-size: 1.05rem;
+  line-height: 1.6;
+  resize: vertical;
+}
+
+.vocab-input:focus {
+  outline: none;
+  border-color: var(--accent-cyan);
+  box-shadow: 0 0 0 3px rgba(0, 240, 255, 0.08);
+}
+
+.vocab-input::placeholder {
+  color: var(--text-secondary);
+  opacity: 0.45;
+}
+
+.vocab-add-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-top: 1rem;
+}
+
+.vocab-notice,
+.vocab-error {
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius-sm);
+  margin-bottom: 1.5rem;
+  font-size: 0.9rem;
+}
+
+.vocab-notice {
+  background: rgba(46, 213, 115, 0.1);
+  border: 1px solid rgba(46, 213, 115, 0.3);
+  color: #2ed573;
+}
+
+.vocab-error {
+  background: rgba(255, 71, 87, 0.1);
+  border: 1px solid rgba(255, 71, 87, 0.3);
+  color: #ff4757;
+}
+
+.vocab-search {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.8rem;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+}
+
+.vocab-search input {
+  background: none;
+  border: none;
+  outline: none;
+  color: var(--text-primary);
+  font-family: 'Inter', sans-serif;
+  font-size: 0.9rem;
+  width: 140px;
+}
+
+.vocab-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.vocab-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  padding: 1rem 1.25rem;
+}
+
+.vocab-item-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.vocab-term {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  font-size: 1.1rem;
+  font-weight: 600;
+  font-family: 'Outfit', sans-serif;
+}
+
+.vocab-pos {
+  font-family: 'Inter', sans-serif;
+  font-size: 0.7rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--accent-cyan);
+  background: rgba(0, 240, 255, 0.1);
+  padding: 0.15rem 0.5rem;
+  border-radius: 4px;
+}
+
+.vocab-translation {
+  color: var(--accent-cyan);
+  margin-top: 0.2rem;
+}
+
+.vocab-example {
+  font-size: 0.85rem;
+  margin-top: 0.5rem;
+  line-height: 1.5;
+}
+
+.vocab-delete {
+  flex-shrink: 0;
+  padding: 0.5rem 0.7rem;
+}
+
+.vocab-empty {
+  text-align: center;
+  padding: 3rem 1rem;
 }
 
 /* --- Responsive Design (Mobile/iPhone) --- */
@@ -699,11 +984,6 @@ h1, h2, h3, h4, h5, h6 {
     gap: 1.5rem;
   }
 
-  .dashboard-header > div:last-child {
-    width: 100%;
-    flex-direction: column;
-  }
-
   .dashboard-actions {
     width: 100%;
     flex-direction: column;
@@ -734,12 +1014,84 @@ h1, h2, h3, h4, h5, h6 {
     height: 350px;
   }
 
+  .scene-compact {
+    height: 380px;
+  }
+
   .card-face {
     padding: 1.5rem;
   }
 
+  /* Declared explicitly: .card-back sets its own padding, so the .card-face
+     rule above cannot override it (equal specificity, earlier in the file). */
+  .card-back {
+    padding: 1.5rem;
+    max-height: 65vh;
+  }
+
   .card-content {
     font-size: 1.2rem;
+  }
+
+  .card-back .markdown-content {
+    font-size: 0.95rem;
+  }
+
+  .card-toolbar {
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+  }
+
+  .card-toolbar .btn {
+    padding: 0.5rem 0.85rem;
+    font-size: 0.85rem;
+  }
+
+  .card-toolbar-status {
+    order: 3;
+    width: 100%;
+    font-size: 0.8rem;
+  }
+
+  /* Full-width stacked buttons are easier to hit than a cramped row. */
+  .card-actions {
+    flex-direction: column;
+    gap: 0.75rem;
+    margin-top: 1.5rem;
+  }
+
+  .card-actions .btn {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .progress-track {
+    margin-bottom: 1.5rem;
+  }
+
+  .vocab-add {
+    padding: 1rem;
+  }
+
+  .vocab-add-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .vocab-add-actions .btn {
+    width: 100%;
+  }
+
+  .vocab-search {
+    width: 100%;
+  }
+
+  .vocab-search input {
+    width: 100%;
+  }
+
+  .vocab-item {
+    padding: 0.9rem 1rem;
   }
 
   .grade-buttons {

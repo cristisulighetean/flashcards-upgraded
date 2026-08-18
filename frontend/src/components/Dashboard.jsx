@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { listFlashcards, listPendingFlashcards } from '../api';
-import { BookOpen, Layers, Zap, ShieldCheck, ChevronDown, ChevronRight, FileText } from 'lucide-react';
+import { BookOpen, Layers, Zap, ShieldCheck, ChevronDown, ChevronRight, FileText, Languages } from 'lucide-react';
 
-const Dashboard = ({ onStartReview, onReviewNew, onBrowseCard }) => {
+const Dashboard = ({ onStartReview, onReviewNew, onBrowseCard, onStudyVocab, onAddWords }) => {
   const [cards, setCards] = useState([]);
   const [stats, setStats] = useState({ inventory: 0, mastery: 0, focus: 0 });
   const [pendingCount, setPendingCount] = useState(0);
+  const [vocabCount, setVocabCount] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [expandedGroups, setExpandedGroups] = useState(new Set());
 
@@ -17,8 +18,11 @@ const Dashboard = ({ onStartReview, onReviewNew, onBrowseCard }) => {
         const all = await listFlashcards(100);
         // Get pending count for quality control
         const pending = await listPendingFlashcards();
-        
+        // Only the count matters here, so ask for a single row.
+        const vocab = await listFlashcards(1, 'vocab');
+
         setCards(all.flashcards || []);
+        setVocabCount(vocab.total_inventory || 0);
         
         // Use global stats from API metadata
         setStats({
@@ -79,6 +83,14 @@ const Dashboard = ({ onStartReview, onReviewNew, onBrowseCard }) => {
             </button>
           )}
           
+          <button
+            className="btn btn-secondary"
+            onClick={vocabCount > 0 ? onStudyVocab : onAddWords}
+          >
+            <Languages size={18} />
+            {vocabCount > 0 ? `Study Vocabulary (${vocabCount})` : 'Add Vocabulary'}
+          </button>
+
           <button 
             className="btn btn-primary"
             onClick={onStartReview}

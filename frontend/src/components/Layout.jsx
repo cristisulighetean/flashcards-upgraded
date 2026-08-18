@@ -18,6 +18,12 @@ const Layout = ({ currentView, setView, children }) => {
             Dashboard
           </a>
           <a
+            className={`nav-item ${currentView === 'vocab' ? 'active' : ''}`}
+            onClick={() => setView('vocab')}
+          >
+            Vocabulary
+          </a>
+          <a
             className={`nav-item ${currentView === 'upload' ? 'active' : ''}`}
             onClick={() => setView('upload')}
           >

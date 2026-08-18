@@ -20,6 +20,7 @@ from app.schemas.flashcard import (
     GenerateFlashcardsRequest,
 )
 from app.services.openai_service import generate_flashcards_from_text, LLMRateLimitError
+from app.services.priority import NEEDS_FOCUS_THRESHOLD, priority_score_expr
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -126,6 +127,7 @@ async def generate_flashcards(
 async def list_flashcards(
     document_id: Optional[str] = Query(default=None, description="Filter by document ID"),
     card_status: Optional[str] = Query(default=None, description="Filter by status: 'pending' or 'accepted'"),
+    card_type: Optional[str] = Query(default=None, description="Filter by type: 'qa' or 'vocab'"),
     limit: int = Query(default=100, ge=1, le=1000),
     db: AsyncSession = Depends(get_db),
 ) -> FlashcardListResponse:
@@ -134,16 +136,12 @@ async def list_flashcards(
     based on mastery (ease) and recency (time since last study).
     Also returns global library statistics for the dashboard.
     """
-    now = datetime.now(timezone.utc)
-    
-    # Priority Score Formula (SQL expression):
-    days_since_update = func.julianday(now) - func.julianday(Flashcard.updated_at)
-    recency_factor = days_since_update / func.max(1, Flashcard.interval)
-    priority_score_expr = recency_factor + (5.0 - Flashcard.ease_factor)
+    # Priority Score Formula (SQL expression, portable across SQLite/Postgres):
+    p_score = priority_score_expr()
 
     # 1. Base Query for the list
     query = (
-        select(Flashcard, Document.filename, priority_score_expr.label("p_score"))
+        select(Flashcard, Document.filename, p_score.label("p_score"))
         .outerjoin(Document, Flashcard.document_id == Document.id)
     )
 
@@ -153,6 +151,9 @@ async def list_flashcards(
 
     if document_id:
         query = query.where(Flashcard.document_id == document_id)
+
+    if card_type:
+        query = query.where(Flashcard.card_type == card_type)
 
     # Order by priority score (highest first) for accepted cards
     if status_filter == "accepted":
@@ -169,9 +170,12 @@ async def list_flashcards(
     stats_query = select(
         func.count(Flashcard.id).label("total"),
         func.avg(Flashcard.ease_factor).label("avg_ease"),
-        # Count needs_focus (priority > 3.0)
-        func.count(case((priority_score_expr > 3.0, Flashcard.id))).label("focus")
+        # Count needs_focus (priority above the focus threshold)
+        func.count(case((p_score > NEEDS_FOCUS_THRESHOLD, Flashcard.id))).label("focus")
     ).where(Flashcard.status == "accepted")
+
+    if card_type:
+        stats_query = stats_query.where(Flashcard.card_type == card_type)
 
     stats_res = await db.execute(stats_query)
     stats = stats_res.one()
