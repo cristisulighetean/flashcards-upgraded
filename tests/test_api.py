@@ -159,6 +159,58 @@ class TestFlashcardGeneration:
 
 
 # ---------------------------------------------------------------------------
+# Bulk (non-AI) flashcard creation
+# ---------------------------------------------------------------------------
+
+
+class TestBulkCreateFlashcards:
+
+    async def _upload(self, client: AsyncClient) -> str:
+        r = await client.post(
+            "/api/v1/documents/upload",
+            files={"file": ("bulk.txt", io.BytesIO(TXT_CONTENT), "text/plain")},
+        )
+        return r.json()["id"]
+
+    async def test_bulk_create_returns_pending_cards(self, client: AsyncClient):
+        doc_id = await self._upload(client)
+        response = await client.post(
+            "/api/v1/flashcards/bulk",
+            json={"document_id": doc_id, "cards": SAMPLE_CARDS},
+        )
+        assert response.status_code == 201
+        body = response.json()
+        assert body["total"] == 2
+        assert body["flashcards"][0]["status"] == "pending"
+        assert body["flashcards"][0]["question"] == SAMPLE_CARDS[0]["question"]
+
+    async def test_bulk_create_dedupes_by_question(self, client: AsyncClient):
+        doc_id = await self._upload(client)
+        cards = SAMPLE_CARDS + [SAMPLE_CARDS[0]]
+        response = await client.post(
+            "/api/v1/flashcards/bulk",
+            json={"document_id": doc_id, "cards": cards},
+        )
+        assert response.status_code == 201
+        assert response.json()["total"] == 2
+
+    async def test_bulk_create_unknown_document_returns_404(self, client: AsyncClient):
+        response = await client.post(
+            "/api/v1/flashcards/bulk",
+            json={"document_id": "does-not-exist", "cards": SAMPLE_CARDS},
+        )
+        assert response.status_code == 404
+
+    async def test_bulk_create_empty_cards_returns_422(self, client: AsyncClient):
+        doc_id = await self._upload(client)
+        response = await client.post(
+            "/api/v1/flashcards/bulk",
+            json={"document_id": doc_id, "cards": []},
+        )
+        assert response.status_code == 422
+
+
+# ---------------------------------------------------------------------------
 # Review flow
 # ---------------------------------------------------------------------------
 

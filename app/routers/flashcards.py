@@ -16,6 +16,7 @@ from app.models.document import Document
 from app.models.flashcard import Flashcard
 from app.models.vocab_entry import VocabEntry
 from app.schemas.flashcard import (
+    BulkCreateFlashcardsRequest,
     FlashcardListResponse,
     FlashcardResponse,
     GenerateFlashcardsRequest,
@@ -112,6 +113,61 @@ async def generate_flashcards(
 
     logger.info(
         "Generated %d pending flashcards for document %s", len(flashcards), document.id
+    )
+
+    return FlashcardListResponse(
+        total=len(flashcards),
+        flashcards=[_flashcard_to_response(f, document.filename) for f in flashcards],
+    )
+
+
+@router.post(
+    "/bulk",
+    response_model=FlashcardListResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Bulk-create pre-authored flashcards for a document (no AI generation)",
+)
+async def bulk_create_flashcards(
+    request: BulkCreateFlashcardsRequest,
+    db: AsyncSession = Depends(get_db),
+) -> FlashcardListResponse:
+    """
+    Create flashcards from pre-authored question/answer pairs, bypassing
+    the LLM entirely. Cards still land as 'pending' for quality control,
+    same as the AI-generation path.
+    """
+    result = await db.execute(select(Document).where(Document.id == request.document_id))
+    document = result.scalar_one_or_none()
+    if not document:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found.")
+
+    flashcards: list[Flashcard] = []
+    seen_questions: set[str] = set()
+    for item in request.cards:
+        key = item.question.strip().lower()
+        if key in seen_questions:
+            continue
+        seen_questions.add(key)
+        flashcard = Flashcard(
+            document_id=document.id,
+            question=item.question.strip(),
+            answer=item.answer.strip(),
+            status="pending",
+        )
+        db.add(flashcard)
+        flashcards.append(flashcard)
+
+    if not flashcards:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="No flashcards to create after deduplication.",
+        )
+
+    document.status = "done"
+    await db.flush()
+
+    logger.info(
+        "Bulk-created %d pending flashcards for document %s", len(flashcards), document.id
     )
 
     return FlashcardListResponse(

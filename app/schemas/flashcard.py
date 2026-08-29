@@ -45,3 +45,16 @@ class GenerateFlashcardsRequest(BaseModel):
         max_length=50,
         description="Target language for flashcards (e.g. 'Spanish'). Defaults to source language.",
     )
+
+
+class BulkFlashcardItem(BaseModel):
+    question: str = Field(..., min_length=1, max_length=500)
+    # Longer than the AI-generation cap (1000): hand-authored answers are
+    # written up front to the same depth as the LLM system prompt asks for
+    # (multi-paragraph, code blocks, worked examples), so they run longer.
+    answer: str = Field(..., min_length=1, max_length=4000)
+
+
+class BulkCreateFlashcardsRequest(BaseModel):
+    document_id: str
+    cards: list[BulkFlashcardItem] = Field(..., min_length=1, max_length=100)
