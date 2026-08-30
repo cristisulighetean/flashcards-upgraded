@@ -80,9 +80,14 @@ def find_or_upload_document(base: str, doc_file: Path, dry_run: bool) -> str:
         print(f"  [dry-run] would upload {filename}", file=sys.stderr)
         return "DRY-RUN-DOC-ID"
 
+    # Quoted @"path" and filename="...": curl's -F splits an unquoted @path
+    # on literal commas (it doubles as multi-file syntax), which silently
+    # breaks any source filename containing one — e.g. "Containers (ECS,
+    # Fargate, ECR, EKS).md" — with a bare "(26) Failed to open/read local
+    # data from file" and no indication that filename content was the cause.
     code, resp, raw = curl_json(
         ["-X", "POST", f"{base}/documents/upload",
-         "-F", f"file=@{doc_file};type=text/markdown;filename={filename}"],
+         "-F", f'file=@"{doc_file}";type=text/markdown;filename="{filename}"'],
         timeout=30,
     )
     if code != 201 or not resp or "id" not in resp:

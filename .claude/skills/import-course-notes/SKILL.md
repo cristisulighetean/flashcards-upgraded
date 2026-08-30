@@ -208,6 +208,7 @@ created and that they're sitting in Quality Control, awaiting review.
   by `assemble_docs.py`'s plain-text separator, not eliminated. This mostly
   matters for the AI-generation path, less for hand-authored cards where you
   control topic boundaries directly by which agent authors which document.
+- **A source filename containing a comma breaks a naive curl multipart upload.** `curl -F file=@path` treats an unquoted, unescaped comma in `@path` as a multi-file separator (that's real curl syntax for uploading several files in one field) — so a title like `Containers (ECS, Fargate, ECR, EKS).md` fails with a bare `curl: (26) Failed to open/read local data from file`, giving no hint that the filename's punctuation was the cause. `push_to_app.py` quotes both the `@"path"` and `filename="..."` parts to avoid this — don't drop the quoting if you ever hand-roll the upload call.
 - **Don't assume the scheme.** A Tailscale MagicDNS hostname can resolve
   fine over DNS while still only answering on `http://`, not `https://`.
   Check with a real `curl` before building anything around a base URL.
