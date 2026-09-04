@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { ArrowLeft, ArrowRight, ChevronLeft, Trash2, FileText } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
-import { deleteFlashcard } from '../api';
+import { deleteFlashcard, flashcardImageUrl } from '../api';
 
 const CardBrowser = ({ cards: initialCards, startIndex = 0, onClose, onCardDeleted }) => {
   const [cards, setCards] = useState(initialCards);
@@ -164,6 +164,9 @@ const CardBrowser = ({ cards: initialCards, startIndex = 0, onClose, onCardDelet
             <div className="card-face card-back glass-panel">
               <div className="card-back-label">Answer</div>
               <div className="markdown-content">
+                {currentCard.has_image && (
+                  <img className="card-answer-image" src={flashcardImageUrl(currentCard.id)} alt="" />
+                )}
                 <ReactMarkdown>{currentCard.answer}</ReactMarkdown>
               </div>
               <div className="card-hint card-hint-inline">

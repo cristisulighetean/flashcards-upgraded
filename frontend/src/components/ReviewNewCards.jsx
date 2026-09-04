@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { listPendingFlashcards, acceptFlashcard, deleteFlashcard } from '../api';
+import { listPendingFlashcards, acceptFlashcard, deleteFlashcard, flashcardImageUrl } from '../api';
 import { CheckCircle2, XCircle, FileText, ChevronLeft } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 
@@ -171,6 +171,9 @@ const ReviewNewCards = ({ onFinish, cardType = null }) => {
             <div className="card-face card-back glass-panel">
               <div className="card-back-label">Answer</div>
               <div className="markdown-content">
+                {currentCard.has_image && (
+                  <img className="card-answer-image" src={flashcardImageUrl(currentCard.id)} alt="" />
+                )}
                 <ReactMarkdown>{currentCard.answer}</ReactMarkdown>
               </div>
             </div>

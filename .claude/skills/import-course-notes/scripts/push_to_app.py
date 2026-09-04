@@ -3,6 +3,14 @@
 Upload one assembled document to the flashcards app and bulk-create its
 authored flashcards, idempotently.
 
+A card may optionally carry an `image_path` (absolute path to a local
+PNG/JPG/GIF/WEBP file — e.g. the original screenshot behind a diagram card
+authored during the OCR pass) alongside `question`/`answer`. This script
+reads it, base64-encodes it, and sends it as `image_base64`/
+`image_content_type` in the bulk request — see `POST /flashcards/bulk` and
+`app/models/flashcard.py` (`image_data`/`image_content_type` columns, qa
+cards only, capped at 3MB per image server-side).
+
 This exists because of two real bugs hit doing this by hand:
 
 1. `jq` rejects raw control characters that Python's `json.loads(strict=False)`
@@ -29,6 +37,7 @@ production Tailscale deployment, or "http://localhost:8000" for a local
 docker-compose backend with no prefix) — this script appends /api/v1 itself.
 """
 import argparse
+import base64
 import json
 import subprocess
 import sys
@@ -37,6 +46,14 @@ from pathlib import Path
 
 MAX_QUESTION_LEN = 500
 MAX_ANSWER_LEN = 4000
+MAX_IMAGE_BYTES = 3 * 1024 * 1024  # matches the backend's cap
+IMAGE_CONTENT_TYPES = {
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".gif": "image/gif",
+    ".webp": "image/webp",
+}
 
 
 def curl_json(args: list[str], timeout: int) -> tuple[int, dict | list | None, str]:
@@ -116,7 +133,23 @@ def load_and_validate_cards(cards_json: Path) -> list[dict]:
         if len(a) > MAX_ANSWER_LEN:
             print(f"  skipping card {i}: answer exceeds {MAX_ANSWER_LEN} chars ({len(a)})", file=sys.stderr)
             continue
-        valid.append({"question": q, "answer": a})
+
+        card = {"question": q, "answer": a}
+        image_path = item.get("image_path")
+        if image_path:
+            img_file = Path(image_path)
+            content_type = IMAGE_CONTENT_TYPES.get(img_file.suffix.lower())
+            if not img_file.is_file():
+                print(f"  skipping image for card {i}: {image_path} not found (card kept, no image)", file=sys.stderr)
+            elif not content_type:
+                print(f"  skipping image for card {i}: unsupported extension {img_file.suffix!r} (card kept, no image)", file=sys.stderr)
+            elif img_file.stat().st_size > MAX_IMAGE_BYTES:
+                print(f"  skipping image for card {i}: {image_path} exceeds {MAX_IMAGE_BYTES} bytes (card kept, no image)", file=sys.stderr)
+            else:
+                card["image_base64"] = base64.b64encode(img_file.read_bytes()).decode("ascii")
+                card["image_content_type"] = content_type
+
+        valid.append(card)
     return valid
 
 

@@ -1,6 +1,7 @@
 """
 Integration tests — full API flow with mocked OpenAI.
 """
+import base64
 import io
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -40,6 +41,11 @@ The process requires *light*, water, and carbon dioxide.
 - Glucose
 - Oxygen
 """
+
+# 1x1 transparent PNG.
+TINY_PNG_B64 = (
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
+)
 
 
 # ---------------------------------------------------------------------------
@@ -208,6 +214,57 @@ class TestBulkCreateFlashcards:
             json={"document_id": doc_id, "cards": []},
         )
         assert response.status_code == 422
+
+    async def test_bulk_create_with_image_is_retrievable(self, client: AsyncClient):
+        doc_id = await self._upload(client)
+        cards = [{**SAMPLE_CARDS[0], "image_base64": TINY_PNG_B64, "image_content_type": "image/png"}]
+        response = await client.post(
+            "/api/v1/flashcards/bulk",
+            json={"document_id": doc_id, "cards": cards},
+        )
+        assert response.status_code == 201
+        card = response.json()["flashcards"][0]
+        assert card["has_image"] is True
+
+        image = await client.get(f"/api/v1/flashcards/{card['id']}/image")
+        assert image.status_code == 200
+        assert image.headers["content-type"] == "image/png"
+        assert image.content == base64.b64decode(TINY_PNG_B64)
+
+    async def test_bulk_create_without_image_has_no_image(self, client: AsyncClient):
+        doc_id = await self._upload(client)
+        response = await client.post(
+            "/api/v1/flashcards/bulk",
+            json={"document_id": doc_id, "cards": SAMPLE_CARDS},
+        )
+        card = response.json()["flashcards"][0]
+        assert card["has_image"] is False
+
+        image = await client.get(f"/api/v1/flashcards/{card['id']}/image")
+        assert image.status_code == 404
+
+    async def test_bulk_create_rejects_oversized_image(self, client: AsyncClient):
+        doc_id = await self._upload(client)
+        huge = base64.b64encode(b"x" * (3 * 1024 * 1024 + 1)).decode()
+        cards = [{**SAMPLE_CARDS[0], "image_base64": huge, "image_content_type": "image/png"}]
+        response = await client.post(
+            "/api/v1/flashcards/bulk",
+            json={"document_id": doc_id, "cards": cards},
+        )
+        assert response.status_code == 422
+
+    async def test_bulk_create_rejects_unpaired_image_fields(self, client: AsyncClient):
+        doc_id = await self._upload(client)
+        cards = [{**SAMPLE_CARDS[0], "image_base64": TINY_PNG_B64}]  # missing content_type
+        response = await client.post(
+            "/api/v1/flashcards/bulk",
+            json={"document_id": doc_id, "cards": cards},
+        )
+        assert response.status_code == 422
+
+    async def test_get_image_unknown_flashcard_returns_404(self, client: AsyncClient):
+        response = await client.get("/api/v1/flashcards/does-not-exist/image")
+        assert response.status_code == 404
 
 
 # ---------------------------------------------------------------------------

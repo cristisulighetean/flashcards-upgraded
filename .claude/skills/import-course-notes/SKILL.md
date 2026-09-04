@@ -129,11 +129,29 @@ match what the app's own AI-generation path produces):
 > not invent facts not present in (or reasonably inferable from) the source.
 
 Hard limits (the bulk endpoint enforces these — `app/schemas/flashcard.py`):
-question ≤ 500 chars, answer ≤ 4000 chars.
+question ≤ 500 chars, answer ≤ 4000 chars, an attached image ≤ 3MB
+(PNG/JPG/GIF/WEBP only).
 
-Each agent writes a plain JSON array (`[{"question": "...", "answer": "..."}]`)
-to a scratch path and validates it (`python3 -m json.tool` or `json.load`)
-before reporting back — don't trust an unvalidated file.
+Each agent writes a plain JSON array to a scratch path and validates it
+(`python3 -m json.tool` or `json.load`) before reporting back — don't trust
+an unvalidated file:
+
+```json
+[
+  {"question": "...", "answer": "..."},
+  {"question": "...", "answer": "...", "image_path": "/absolute/path/to/diagram.png"}
+]
+```
+
+`image_path` is optional, qa cards only (never on vocab content), and only
+worth setting when the card is fundamentally *about* a diagram the OCR pass
+already resolved (Phase 3) — a real screenshot of a VPC layout or an
+architecture diagram carries information a prose transcription loses. Don't
+attach images to cards whose content is just text/commands; that's what the
+answer field is for. Point it at the original screenshot file from the OCR
+phase (the same file the enrichment agent read via `Attachments/Pasted
+image ...png` or similar) — `push_to_app.py` reads, size-checks, and
+base64-encodes it itself; the agent just needs to reference the path.
 
 Card count: aim for real coverage of every distinct fact/concept in the
 source, not a fixed number — a thin 200-word note might warrant 8 cards, a
@@ -170,8 +188,14 @@ curl -sS "$BASE/flashcards/?document_id=<id>&card_status=pending&limit=1000" | p
 
 Confirm each document's pending count matches what was authored. Spot-read
 2-3 cards' `question`/`answer` fields to sanity-check formatting and content
-before telling the user it's done. Tell the user which documents/cards were
-created and that they're sitting in Quality Control, awaiting review.
+before telling the user it's done. For any card authored with `image_path`,
+confirm `has_image: true` in the response and that `GET
+/flashcards/{id}/image` returns 200 with the right content-type — an image
+that failed to attach (missing file, unsupported extension, over the 3MB
+cap) still creates the card, just without the image, and `push_to_app.py`
+only warns about that on stderr rather than failing the run. Tell the user
+which documents/cards were created and that they're sitting in Quality
+Control, awaiting review.
 
 ## Known Pitfalls
 

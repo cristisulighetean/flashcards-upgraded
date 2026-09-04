@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { listFlashcards, submitReview, deleteVocabEntry, deleteFlashcard } from '../api';
+import { listFlashcards, submitReview, deleteVocabEntry, deleteFlashcard, flashcardImageUrl } from '../api';
 import { CheckCircle2, Zap, RotateCcw, GraduationCap, ArrowRight, Trash2 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 
@@ -216,6 +216,9 @@ const ReviewSession = ({ onFinish, cardType = null, lang = null }) => {
           <div className="learn-word">{card.question}</div>
           <div className="learn-divider" />
           <div className="markdown-content">
+            {card.has_image && (
+              <img className="card-answer-image" src={flashcardImageUrl(card.id)} alt="" />
+            )}
             <ReactMarkdown>{card.answer}</ReactMarkdown>
           </div>
         </div>
@@ -319,6 +322,9 @@ const ReviewSession = ({ onFinish, cardType = null, lang = null }) => {
           <div className="card-face card-back glass-panel">
             <div className="card-back-label">Answer</div>
             <div className="markdown-content">
+              {currentCard.has_image && (
+                <img className="card-answer-image" src={flashcardImageUrl(currentCard.id)} alt="" />
+              )}
               <ReactMarkdown>{currentCard.answer}</ReactMarkdown>
             </div>
           </div>

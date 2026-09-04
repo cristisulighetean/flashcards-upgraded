@@ -1,11 +1,12 @@
 """
 Flashcards router — generation, retrieval, adaptive priority study flow.
 """
+import base64
 import logging
 from datetime import datetime, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy import func, case, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
@@ -39,6 +40,7 @@ def _flashcard_to_response(
     data = FlashcardResponse.model_validate(flashcard)
     data.document_filename = filename
     data.priority_score = round(priority, 2)
+    data.has_image = flashcard.image_data is not None
     return data
 
 
@@ -154,6 +156,9 @@ async def bulk_create_flashcards(
             answer=item.answer.strip(),
             status="pending",
         )
+        if item.image_base64:
+            flashcard.image_data = base64.b64decode(item.image_base64)
+            flashcard.image_content_type = item.image_content_type
         db.add(flashcard)
         flashcards.append(flashcard)
 
@@ -174,6 +179,26 @@ async def bulk_create_flashcards(
         total=len(flashcards),
         flashcards=[_flashcard_to_response(f, document.filename) for f in flashcards],
     )
+
+
+@router.get(
+    "/{flashcard_id}/image",
+    summary="Fetch a card's attached image, if it has one",
+    response_class=Response,
+)
+async def get_flashcard_image(
+    flashcard_id: str,
+    db: AsyncSession = Depends(get_db),
+) -> Response:
+    result = await db.execute(
+        select(Flashcard.image_data, Flashcard.image_content_type).where(
+            Flashcard.id == flashcard_id
+        )
+    )
+    row = result.one_or_none()
+    if not row or row.image_data is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No image on this flashcard.")
+    return Response(content=row.image_data, media_type=row.image_content_type or "application/octet-stream")
 
 
 @router.get(

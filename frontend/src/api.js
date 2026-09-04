@@ -91,6 +91,9 @@ export const listPendingFlashcards = async (cardType = null) => {
   return res.json();
 };
 
+// 6b. URL for a card's attached image (only meaningful when card.has_image)
+export const flashcardImageUrl = (flashcardId) => `${API_BASE}/flashcards/${flashcardId}/image`;
+
 // 7. Accept a Flashcard (move from pending to collection)
 export const acceptFlashcard = async (flashcardId) => {
   const res = await fetch(`${API_BASE}/flashcards/${flashcardId}/accept`, {

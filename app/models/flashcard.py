@@ -2,7 +2,7 @@ import uuid
 from datetime import date, datetime, timezone
 from typing import Optional
 
-from sqlalchemy import Date, DateTime, Float, ForeignKey, Integer, String
+from sqlalchemy import Date, DateTime, Float, ForeignKey, Integer, LargeBinary, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
@@ -34,6 +34,13 @@ class Flashcard(Base):
     direction: Mapped[Optional[str]] = mapped_column(
         String(20), nullable=True
     )  # vocab only: ro_en | en_ro
+
+    # qa cards only: an optional diagram/screenshot attached to the answer.
+    # Stored inline (not a file/object store — nothing else in this app needs
+    # one) and served through its own endpoint so list responses stay light;
+    # see FlashcardResponse.has_image.
+    image_data: Mapped[Optional[bytes]] = mapped_column(LargeBinary, nullable=True)
+    image_content_type: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
 
     # SM-2 fields
     ease_factor: Mapped[float] = mapped_column(Float, nullable=False, default=2.5)
