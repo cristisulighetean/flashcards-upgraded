@@ -425,6 +425,10 @@ h1, h2, h3, h4, h5, h6 {
   overflow-y: auto;
   max-height: 70vh;
   align-items: flex-start;
+  /* .card-face centers content on the main axis; left uncentered, tall
+     content overflows both above and below the box and overflow-y can only
+     ever reach the bottom half, silently walling off the top of the answer. */
+  justify-content: flex-start;
   text-align: left;
   padding: 2.5rem;
 }
